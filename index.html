@@ -23,6 +23,7 @@
         <button class="tab-button" type="button" data-tab="categories">类别维护</button>
         <button class="tab-button" type="button" data-tab="ratings">评分</button>
         <button class="tab-button" type="button" data-tab="calendar">日历</button>
+        <button class="tab-button" type="button" data-tab="sync">同步</button>
       </nav>
 
       <section class="tab-panel is-active" data-tab-panel="planner" aria-label="点菜">
@@ -220,6 +221,54 @@
           </label>
         </div>
         <div class="rating-list" id="rating-list"></div>
+      </section>
+
+      <section class="sync-board tab-panel" data-tab-panel="sync" aria-label="数据同步">
+        <article class="sync-card">
+          <div class="section-title">
+            <h2>跨设备同步</h2>
+            <p id="sync-status" class="sync-status">默认保存在当前浏览器，支持无 Token 的跨设备“同步码”共享。</p>
+          </div>
+          <div class="sync-path">
+            <label>
+              <span>仓库</span>
+              <input id="cloud-repo" type="text" placeholder="例如：Tlyyy/ZWCSM" autocomplete="off" />
+            </label>
+            <label>
+              <span>分支</span>
+              <input id="cloud-branch" type="text" value="main" autocomplete="off" />
+            </label>
+            <label>
+              <span>文件路径</span>
+              <input id="cloud-path" type="text" value="data/zwcsm-state.json" autocomplete="off" />
+            </label>
+            <label>
+              <span>GitHub Token（仅本机保存）</span>
+              <input id="cloud-token" type="password" autocomplete="new-password" placeholder="输入个人 Access Token（repo 权限）" />
+            </label>
+            <div class="sync-tools">
+              <button class="text-button" id="cloud-save-config" type="button">保存配置</button>
+              <button class="text-button" id="cloud-pull" type="button">从云端拉取</button>
+              <button class="text-button" id="cloud-push" type="button">上传到云端</button>
+              <button class="text-button" id="cloud-sync-toggle" type="button">开启自动同步</button>
+            </div>
+            <div class="sync-tools">
+              <button class="text-button" id="cloud-copy-code" type="button">复制同步码</button>
+              <button class="text-button" id="cloud-apply-code" type="button">从同步码恢复</button>
+            </div>
+            <label>
+              <span>同步码（可分享给其他设备）</span>
+              <textarea id="cloud-sync-code" rows="4" readonly placeholder="点击“复制同步码”后分享给其他设备，这里会显示最新的同步码"></textarea>
+            </div>
+          </div>
+          <div class="sync-tools">
+            <button class="text-button danger-action" id="clear-sync-data" type="button">清空评分和本周记录</button>
+          </div>
+          <div class="sync-note">
+            <p>无 token 方案：在任意设备点“复制同步码”，把码发到其他设备，再点“从同步码恢复”。</p>
+            <p>有 token 方案仍保留：一台设备上传到云端，另一台从云端拉取。</p>
+          </div>
+        </article>
       </section>
     </main>
 

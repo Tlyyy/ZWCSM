@@ -106,6 +106,7 @@ const dishRatingsKey = "lunch-picker-dish-ratings-v1";
 const activeTabKey = "lunch-picker-active-tab-v1";
 const categoryDataKey = "lunch-picker-category-data-v1";
 const categoryDataVersion = 2;
+const cloudSyncConfigKey = "lunch-picker-cloud-sync-config-v1";
 const DEFAULT_CATEGORY = "未分类";
 const exclusionTags = ["内脏", "鱼类", "豆制品", "汤类", "辣口", "干锅", "大菜", "高价菜", "重口菜"];
 
@@ -159,6 +160,19 @@ const elements = {
   addCategoryButton: document.querySelector("#add-category"),
   categoryList: document.querySelector("#category-list"),
   categoryCount: document.querySelector("#category-count"),
+  cloudRepo: document.querySelector("#cloud-repo"),
+  cloudBranch: document.querySelector("#cloud-branch"),
+  cloudPath: document.querySelector("#cloud-path"),
+  cloudToken: document.querySelector("#cloud-token"),
+  cloudSaveConfig: document.querySelector("#cloud-save-config"),
+  cloudPull: document.querySelector("#cloud-pull"),
+  cloudPush: document.querySelector("#cloud-push"),
+  cloudSyncToggle: document.querySelector("#cloud-sync-toggle"),
+  cloudSyncCode: document.querySelector("#cloud-sync-code"),
+  cloudCopyCode: document.querySelector("#cloud-copy-code"),
+  cloudApplyCode: document.querySelector("#cloud-apply-code"),
+  clearSyncData: document.querySelector("#clear-sync-data"),
+  syncStatus: document.querySelector("#sync-status"),
 };
 
 function activateTab(tabName) {
@@ -211,6 +225,383 @@ function readJsonStorage(key, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function setSyncStatus(message, type = "ok") {
+  if (!elements.syncStatus) return;
+  elements.syncStatus.textContent = message;
+  elements.syncStatus.classList.remove("ok", "warning", "danger");
+  elements.syncStatus.classList.add(type);
+}
+
+function getCloudSyncConfig() {
+  return {
+    ...{
+      repo: "Tlyyy/ZWCSM",
+      branch: "main",
+      path: "data/zwcsm-state.json",
+      token: "",
+      autoSync: false,
+    },
+    ...(readJsonStorage(cloudSyncConfigKey, {})),
+  };
+}
+
+function saveCloudSyncConfig(nextConfig) {
+  localStorage.setItem(cloudSyncConfigKey, JSON.stringify(nextConfig));
+}
+
+let cloudDebounceTimer = null;
+let autoSyncTimer = null;
+let isAutoSyncRunning = false;
+
+function buildSyncPayload() {
+  return {
+    app: "ZWCSM",
+    schema: 2,
+    updatedAt: new Date().toISOString(),
+    categoryData: readJsonStorage(categoryDataKey, null),
+    weeklyPlans: readJsonStorage(weeklyPlansKey, {}),
+    dishRatings: readJsonStorage(dishRatingsKey, {}),
+    activeTab: localStorage.getItem(activeTabKey) || "planner",
+  };
+}
+
+function normalizeGithubPath(path) {
+  return String(path || "").trim().replace(/^\/+|\/+$/g, "");
+}
+
+function parseOwnerRepo(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return { owner: "", repo: "" };
+
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const parsed = new URL(raw);
+      if (parsed.hostname.includes("github.com")) {
+        const parts = parsed.pathname.split("/").filter(Boolean);
+        if (parts.length >= 2) {
+          return { owner: parts[0], repo: parts[1] };
+        }
+      }
+    } catch {
+      // fallback to simple split
+    }
+  }
+
+  const [owner, repo] = raw.split("/");
+  return {
+    owner: (owner || "").trim(),
+    repo: (repo || "").trim(),
+  };
+}
+
+async function callGithubApi(url, { token, method = "GET", body = null } = {}) {
+  const headers = {
+    "Accept": "application/vnd.github+json",
+  };
+  if (token) headers.Authorization = `token ${token}`;
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : null,
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const reason = result?.message || response.statusText;
+    throw new Error(`GitHub API 失败：${reason}`);
+  }
+  return result;
+}
+
+function toSafeBase64(value) {
+  return btoa(unescape(encodeURIComponent(value)));
+}
+
+function fromSafeBase64(value) {
+  return decodeURIComponent(escape(atob(value)));
+}
+
+function encodeRepoPath(path) {
+  return encodeURIComponent(normalizeGithubPath(path)).replace(/%2F/g, "/");
+}
+
+async function pullCloudState() {
+  const config = getCloudSyncConfig();
+  const token = config.token?.trim() || "";
+  if (!token) throw new Error("缺少 GitHub token");
+  const { owner, repo } = parseOwnerRepo(config.repo);
+  if (!owner || !repo) throw new Error("仓库格式应为 owner/repo");
+  const path = normalizeGithubPath(config.path);
+  if (!path) throw new Error("文件路径不能为空");
+
+  const encodedPath = encodeRepoPath(path);
+  const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(config.branch || "main")}`;
+  const data = await callGithubApi(getUrl, { token });
+
+  if (!data?.content) return null;
+  const raw = fromSafeBase64(data.content);
+  const payload = JSON.parse(raw);
+  if (!payload || payload.app !== "ZWCSM") throw new Error("不是有效的同步文件");
+  return { payload, sha: data.sha };
+}
+
+async function pushCloudState() {
+  const config = getCloudSyncConfig();
+  const token = config.token?.trim() || "";
+  if (!token) throw new Error("缺少 GitHub token");
+  const { owner, repo } = parseOwnerRepo(config.repo);
+  if (!owner || !repo) throw new Error("仓库格式应为 owner/repo");
+
+  const path = normalizeGithubPath(config.path);
+  if (!path) throw new Error("文件路径不能为空");
+
+  const encodedPath = encodeRepoPath(path);
+  const baseUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`;
+  let sha;
+
+  try {
+    const remote = await pullCloudState();
+    sha = remote?.sha;
+  } catch (error) {
+    if (error.message && error.message.includes("Not Found")) {
+      sha = undefined;
+    } else {
+      throw error;
+    }
+  }
+
+  const payload = buildSyncPayload();
+  const response = await callGithubApi(baseUrl, {
+    token,
+    method: "PUT",
+    body: {
+      message: `sync ${new Date().toLocaleString("zh-CN")}`,
+      branch: config.branch || "main",
+      sha,
+      content: toSafeBase64(JSON.stringify(payload)),
+    },
+  });
+  return response;
+}
+
+function scheduleCloudSync() {
+  const config = getCloudSyncConfig();
+  if (!config.autoSync) return;
+
+  clearTimeout(cloudDebounceTimer);
+  cloudDebounceTimer = setTimeout(async () => {
+    try {
+      await pushCloudState();
+      setSyncStatus("已自动同步到云端。", "ok");
+    } catch (error) {
+      setSyncStatus(`同步失败：${error.message}`, "danger");
+      console.error("Auto sync push failed:", error);
+    }
+  }, 1200);
+}
+
+async function syncNow(action) {
+  const config = getCloudSyncConfig();
+  const token = config.token?.trim() || "";
+  if (!token) {
+    setSyncStatus("缺少 GitHub token，先保存配置。", "warning");
+    return;
+  }
+
+  try {
+    if (action === "pull") {
+      const remote = await pullCloudState();
+      if (!remote || !remote.payload) {
+        setSyncStatus("云端无数据。", "warning");
+        return;
+      }
+      applyCloudPayload(remote.payload);
+      currentPlan = [];
+      fixedDishIds = new Set();
+      refreshAllViews();
+      setSyncStatus("已从云端拉取并应用。", "ok");
+    } else {
+      await pushCloudState();
+      setSyncStatus("已上传到云端。", "ok");
+    }
+  } catch (error) {
+    setSyncStatus(`云端同步失败：${error.message}`, "danger");
+    console.error("Cloud sync failed:", error);
+  }
+}
+
+function applyCloudPayload(payload) {
+  const categoryData = payload.categoryData;
+  const weeklyPlans = payload.weeklyPlans;
+  const dishRatings = payload.dishRatings;
+  if (categoryData !== null) localStorage.setItem(categoryDataKey, JSON.stringify(categoryData));
+  if (weeklyPlans) localStorage.setItem(weeklyPlansKey, JSON.stringify(weeklyPlans));
+  if (dishRatings) localStorage.setItem(dishRatingsKey, JSON.stringify(dishRatings));
+  if (payload.activeTab) localStorage.setItem(activeTabKey, payload.activeTab);
+  if (payload.categoryData?.version) {
+    localStorage.setItem(`${categoryDataKey}:version`, String(payload.categoryData.version));
+  } else {
+    localStorage.setItem(`${categoryDataKey}:version`, String(categoryDataVersion));
+  }
+}
+
+function startAutoSync() {
+  const config = getCloudSyncConfig();
+  if (!config.autoSync) return;
+  if (!config.token?.trim()) {
+    setSyncStatus("未填写 token，无法开启自动同步。", "warning");
+    config.autoSync = false;
+    saveCloudSyncConfig(config);
+    if (elements.cloudSyncToggle) elements.cloudSyncToggle.textContent = "开启自动同步";
+    return;
+  }
+  if (isAutoSyncRunning) return;
+  isAutoSyncRunning = true;
+  autoSyncTimer = setInterval(() => syncNow("pull"), 30000);
+  setSyncStatus("已开启自动同步（每30秒拉取）。", "ok");
+}
+
+function stopAutoSync() {
+  if (!isAutoSyncRunning) return;
+  clearInterval(autoSyncTimer);
+  autoSyncTimer = null;
+  isAutoSyncRunning = false;
+}
+
+function toggleAutoSync() {
+  const config = getCloudSyncConfig();
+  config.autoSync = !config.autoSync;
+  saveCloudSyncConfig(config);
+  if (!config.token?.trim()) {
+    setSyncStatus("请先填写 token 并保存。", "warning");
+    config.autoSync = false;
+    saveCloudSyncConfig(config);
+    elements.cloudSyncToggle.textContent = "开启自动同步";
+    stopAutoSync();
+    return;
+  }
+
+  if (config.autoSync) syncNow("pull");
+  if (config.autoSync) {
+    startAutoSync();
+    elements.cloudSyncToggle.textContent = "关闭自动同步";
+  } else {
+    stopAutoSync();
+    elements.cloudSyncToggle.textContent = "开启自动同步";
+  }
+}
+
+function refreshAllViews() {
+  migrateCategoryData();
+  populateCategories();
+  renderCategoryBoard();
+  renderPlan();
+  renderCandidates();
+  renderPlanSearchResults();
+  renderWeeklyPlans();
+  renderCalendar();
+  renderRatingMaintenance();
+  const activeTab = localStorage.getItem(activeTabKey) || "planner";
+  activateTab(activeTab);
+  handleSettingsChange();
+}
+
+function clearSyncDataState() {
+  if (!window.confirm("确定清空评分和本周菜单？此操作不可恢复。")) return;
+  saveCurrentWeekPlans([]);
+  saveDishRatings({});
+  setSyncStatus("已清空：本周菜单和评分。", "warning");
+  refreshAllViews();
+  scheduleCloudSync();
+}
+
+function applySyncPayload(payload) {
+  if (!payload || payload.app !== "ZWCSM") {
+    throw new Error("不是有效的同步文件");
+  }
+  applyCloudPayload(payload);
+}
+
+function generateSyncCode() {
+  const payload = buildSyncPayload();
+  return toSafeBase64(JSON.stringify(payload));
+}
+
+function applySyncCode(text) {
+  try {
+    const raw = fromSafeBase64(String(text || ""));
+    const payload = JSON.parse(raw);
+    if (!window.confirm("恢复同步码会覆盖当前本地的分类、评分和本周记录，是否继续？")) return;
+    applySyncPayload(payload);
+    currentPlan = [];
+    fixedDishIds = new Set();
+    refreshAllViews();
+    setSyncStatus("已应用同步码。", "ok");
+  } catch (error) {
+    console.error("Apply sync code failed:", error);
+    setSyncStatus("同步码无效，请确认是从本应用复制的同步码。", "danger");
+    alert("恢复失败：同步码无效。");
+  }
+}
+
+function copySyncCode() {
+  const code = generateSyncCode();
+  if (elements.cloudSyncCode) elements.cloudSyncCode.value = code;
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        setSyncStatus("同步码已复制到剪贴板。", "ok");
+      })
+      .catch(() => fallbackCopySyncCode(code));
+  } else {
+    fallbackCopySyncCode(code);
+  }
+}
+
+function fallbackCopySyncCode(code) {
+  try {
+    const temp = document.createElement("textarea");
+    temp.value = code;
+    temp.style.position = "fixed";
+    temp.style.opacity = "0";
+    document.body.appendChild(temp);
+    temp.focus();
+    temp.select();
+    document.execCommand("copy");
+    document.body.removeChild(temp);
+    setSyncStatus("同步码已复制到剪贴板。", "ok");
+  } catch {
+    setSyncStatus("同步码已生成，请手动复制文本框内容。", "warning");
+  }
+}
+
+function applySyncCodeFromPrompt() {
+  const input = window.prompt("粘贴同步码后恢复：", elements.cloudSyncCode?.value || "");
+  if (input === null) return;
+  applySyncCode(input.trim());
+}
+
+function saveCloudConfigFromUi() {
+  const nextConfig = {
+    repo: (elements.cloudRepo?.value || "").trim(),
+    branch: (elements.cloudBranch?.value || "main").trim(),
+    path: normalizeGithubPath(elements.cloudPath?.value || ""),
+    token: elements.cloudToken?.value || "",
+    autoSync: getCloudSyncConfig().autoSync,
+  };
+  saveCloudSyncConfig(nextConfig);
+  if (elements.cloudPath) elements.cloudPath.value = nextConfig.path;
+  if (!nextConfig.token) {
+    setSyncStatus("已保存配置，但未填写 token，云端同步暂不可用。", "warning");
+    stopAutoSync();
+    if (elements.cloudSyncToggle) elements.cloudSyncToggle.textContent = "开启自动同步";
+    return;
+  }
+  setSyncStatus("配置已保存。", "ok");
+  syncNow("pull");
 }
 
 function normalizeCategoryName(value) {
@@ -290,6 +681,7 @@ function persistCategoryData() {
   };
   localStorage.setItem(categoryDataKey, JSON.stringify(payload));
   localStorage.setItem(`${categoryDataKey}:version`, String(categoryDataVersion));
+  scheduleCloudSync();
 }
 
 function migrateCategoryData() {
@@ -396,6 +788,7 @@ function getAllWeeklyPlans() {
 
 function saveAllWeeklyPlans(plansByWeek) {
   localStorage.setItem(weeklyPlansKey, JSON.stringify(plansByWeek));
+  scheduleCloudSync();
 }
 
 function getCurrentWeekPlans() {
@@ -442,6 +835,7 @@ function getDishRatings() {
 
 function saveDishRatings(ratings) {
   localStorage.setItem(dishRatingsKey, JSON.stringify(ratings));
+  scheduleCloudSync();
 }
 
 function getDishRating(dishId) {
@@ -1778,6 +2172,14 @@ function bindEvents() {
   elements.weeklyList.addEventListener("click", (event) => {
     handleRatingClick(event);
   });
+
+  if (elements.cloudSaveConfig) elements.cloudSaveConfig.addEventListener("click", saveCloudConfigFromUi);
+  if (elements.cloudPull) elements.cloudPull.addEventListener("click", () => syncNow("pull"));
+  if (elements.cloudPush) elements.cloudPush.addEventListener("click", () => syncNow("push"));
+  if (elements.cloudSyncToggle) elements.cloudSyncToggle.addEventListener("click", toggleAutoSync);
+  if (elements.clearSyncData) elements.clearSyncData.addEventListener("click", clearSyncDataState);
+  if (elements.cloudCopyCode) elements.cloudCopyCode.addEventListener("click", copySyncCode);
+  if (elements.cloudApplyCode) elements.cloudApplyCode.addEventListener("click", applySyncCodeFromPrompt);
 }
 
 hydrateCategoryData(false);
@@ -1785,6 +2187,13 @@ migrateCategoryData();
 populateCategories();
 renderCategoryBoard();
 bindEvents();
+const initialCloudConfig = getCloudSyncConfig();
+if (elements.cloudRepo) elements.cloudRepo.value = initialCloudConfig.repo || "Tlyyy/ZWCSM";
+if (elements.cloudBranch) elements.cloudBranch.value = initialCloudConfig.branch || "main";
+if (elements.cloudPath) elements.cloudPath.value = initialCloudConfig.path || "data/zwcsm-state.json";
+if (elements.cloudToken) elements.cloudToken.value = "";
+if (elements.cloudSyncToggle) elements.cloudSyncToggle.textContent = initialCloudConfig.autoSync ? "关闭自动同步" : "开启自动同步";
+setSyncStatus("当前数据默认保存在当前浏览器，可用“复制同步码/恢复同步码”跨设备同步。");
 normalizeInputs();
 renderPlan();
 renderPlanSearchResults();
@@ -1793,3 +2202,7 @@ renderWeeklyPlans();
 renderCalendar();
 renderRatingMaintenance();
 activateTab(localStorage.getItem(activeTabKey) || "planner");
+
+if (initialCloudConfig.autoSync) {
+  startAutoSync();
+}

@@ -103,7 +103,7 @@ button:disabled {
 
 .app-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 5px;
   border: 1px solid var(--line);
@@ -146,7 +146,8 @@ button:disabled {
 .recent-card,
 .menu-card,
 .rating-board,
-.category-board {
+.category-board,
+.sync-board {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -174,6 +175,50 @@ button:disabled {
   gap: 6px;
 }
 
+.sync-card {
+  display: grid;
+  gap: 12px;
+}
+
+.sync-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.sync-path {
+  display: grid;
+  gap: 6px;
+}
+
+.sync-status {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.sync-status.ok {
+  color: var(--success);
+}
+
+.sync-status.warning {
+  color: var(--warning);
+}
+
+.sync-status.danger {
+  color: var(--danger);
+}
+
+.sync-note {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
 .number-grid span,
 legend,
 .toggle-group legend,
@@ -191,7 +236,8 @@ legend,
 }
 
 input,
-select {
+select,
+textarea {
   min-height: 38px;
   width: 100%;
   border: 1px solid var(--line);
