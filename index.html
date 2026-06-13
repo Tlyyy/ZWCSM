@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>中午吃什么</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="brand-mark">红西小炒</div>
+        <div class="hero-copy">
+          <p class="eyebrow">多人午饭配置器</p>
+          <h1 id="page-title">这顿怎么点</h1>
+          <p class="subtitle">按人数、预算、餐具费和折扣，自动配一桌。</p>
+        </div>
+      </section>
+
+      <nav class="app-tabs" aria-label="功能页签">
+        <button class="tab-button is-active" type="button" data-tab="planner">点菜</button>
+        <button class="tab-button" type="button" data-tab="menu">菜单</button>
+        <button class="tab-button" type="button" data-tab="categories">类别维护</button>
+        <button class="tab-button" type="button" data-tab="ratings">评分</button>
+        <button class="tab-button" type="button" data-tab="calendar">日历</button>
+      </nav>
+
+      <section class="tab-panel is-active" data-tab-panel="planner" aria-label="点菜">
+        <section class="control-panel" aria-label="点餐配置">
+          <div class="number-grid">
+            <label>
+              <span>人数</span>
+              <input id="people-count" type="number" min="1" max="12" value="4" />
+            </label>
+            <label>
+              <span>总预算</span>
+              <input id="total-budget" type="number" min="10" max="500" value="100" />
+            </label>
+            <label>
+              <span>餐具费/人</span>
+              <input id="tableware-fee" type="number" min="0" max="20" step="0.5" value="2" />
+            </label>
+            <label>
+              <span>折扣</span>
+              <input id="discount" type="number" min="0.1" max="1" step="0.01" value="0.88" />
+            </label>
+            <label>
+              <span>点菜数量</span>
+              <input id="dish-count" type="number" min="1" max="10" placeholder="自动" />
+            </label>
+            <label>
+              <span>菜品分类</span>
+              <select id="category">
+                <option value="all">全部分类</option>
+              </select>
+            </label>
+            <label>
+              <span>最低评分</span>
+              <select id="min-rating">
+                <option value="none">不过滤</option>
+                <option value="1">1分以上</option>
+                <option value="2">2分以上</option>
+                <option value="3" selected>3分以上</option>
+                <option value="4">4分以上</option>
+                <option value="5">5分</option>
+              </select>
+            </label>
+          </div>
+
+          <fieldset class="toggle-group exclude-group">
+            <legend>排除标签</legend>
+            <div id="excluded-tags" class="category-toggles"></div>
+          </fieldset>
+        </section>
+
+        <section class="decision-panel" aria-label="今日菜单方案">
+          <div class="plan-card">
+            <div class="plan-heading">
+              <div class="plan-title-tools">
+                <p class="result-label">今日菜单方案</p>
+                <div class="plan-picker" aria-label="搜索并加入菜品">
+                  <label>
+                    <span>搜菜加入</span>
+                    <input id="plan-search" type="search" placeholder="输入菜名，回车前先点加入" autocomplete="off" />
+                  </label>
+                  <div class="plan-search-results" id="plan-search-results"></div>
+                </div>
+              </div>
+              <p id="budget-status" class="budget-status neutral">还没生成方案</p>
+            </div>
+            <div id="plan-list" class="plan-list">
+              <p class="empty-state">点一下“自动配一桌”，今天中午就有答案。</p>
+            </div>
+          </div>
+
+          <aside class="summary-card" aria-label="价格汇总">
+            <dl class="price-summary">
+              <div>
+                <dt>菜品小计</dt>
+                <dd id="dish-subtotal">0.0 元</dd>
+              </div>
+              <div>
+                <dt>餐具费</dt>
+                <dd id="tableware-total">8.0 元</dd>
+              </div>
+              <div>
+                <dt>折前总价</dt>
+                <dd id="before-discount-total">8.0 元</dd>
+              </div>
+              <div>
+                <dt>折扣</dt>
+                <dd id="discount-label">0.88</dd>
+              </div>
+              <div class="total-row">
+                <dt>折后总价</dt>
+                <dd id="final-total">7.0 元</dd>
+              </div>
+              <div>
+                <dt>人均</dt>
+                <dd id="per-person">1.8 元</dd>
+              </div>
+            </dl>
+            <div class="actions">
+              <button class="primary-action" id="generate-button" type="button">自动配一桌</button>
+              <button class="secondary-action" id="save-weekly-plan" type="button">保存本周菜单</button>
+              <button class="secondary-action" id="clear-plan" type="button">清空方案</button>
+            </div>
+          </aside>
+        </section>
+      </section>
+
+      <section class="calendar-board tab-panel" data-tab-panel="calendar" aria-label="吃饭日历">
+        <div class="section-title calendar-title">
+          <div>
+            <h2>吃饭日历</h2>
+            <p id="calendar-summary" class="calendar-summary">查看每天保存过的菜单</p>
+          </div>
+          <div class="calendar-actions">
+            <button class="text-button" id="calendar-prev" type="button">上个月</button>
+            <strong id="calendar-month">本月</strong>
+            <button class="text-button" id="calendar-today" type="button">回到本月</button>
+            <button class="text-button" id="calendar-next" type="button">下个月</button>
+          </div>
+        </div>
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>周一</span>
+          <span>周二</span>
+          <span>周三</span>
+          <span>周四</span>
+          <span>周五</span>
+          <span>周六</span>
+          <span>周日</span>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </section>
+
+      <section class="category-board tab-panel" data-tab-panel="categories" aria-label="类别维护">
+        <article class="category-card">
+          <div class="section-title">
+            <h2>类别管理</h2>
+            <span id="category-count">0 个分类</span>
+          </div>
+          <form class="category-form" id="category-form">
+            <label>
+              <span>新增分类</span>
+              <input id="category-name" type="text" placeholder="例如：凉拌菜" autocomplete="off" maxlength="18" />
+            </label>
+            <button class="primary-action" id="add-category" type="button">新增</button>
+          </form>
+          <div id="category-list" class="category-list"></div>
+        </article>
+      </section>
+
+      <section class="menu-board tab-panel" data-tab-panel="menu" aria-label="菜单和记录">
+        <article class="recent-card">
+          <div class="section-title">
+            <h2>本周菜单</h2>
+            <button class="text-button" id="clear-weekly" type="button">清空本周</button>
+          </div>
+          <ol class="weekly-list" id="weekly-list"></ol>
+        </article>
+
+        <article class="menu-card">
+          <div class="section-title">
+            <h2>当前候选</h2>
+            <span id="candidate-count">0 道菜</span>
+          </div>
+          <label class="menu-search">
+            <span>搜索菜单</span>
+            <input id="menu-search" type="search" placeholder="输入菜名或分类" autocomplete="off" />
+          </label>
+          <div class="dish-grid" id="dish-grid"></div>
+        </article>
+      </section>
+
+      <section class="rating-board tab-panel" data-tab-panel="ratings" aria-label="评分维护">
+        <div class="section-title">
+          <h2>评分维护</h2>
+          <span id="rating-count">0 道菜</span>
+        </div>
+        <div class="rating-tools">
+          <label>
+            <span>搜索菜品</span>
+            <input id="rating-search" type="search" placeholder="输入菜名或分类" autocomplete="off" />
+          </label>
+          <label>
+            <span>维护分类</span>
+            <select id="rating-category">
+              <option value="all">全部分类</option>
+            </select>
+          </label>
+          <label>
+            <span>评分状态</span>
+            <select id="rating-status">
+              <option value="all">全部状态</option>
+              <option value="rated">已评分</option>
+              <option value="unrated">未评分</option>
+              <option value="low">低分</option>
+            </select>
+          </label>
+        </div>
+        <div class="rating-list" id="rating-list"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
