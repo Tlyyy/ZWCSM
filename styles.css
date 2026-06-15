@@ -1151,8 +1151,14 @@ textarea:focus {
 
 .calendar-board {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 10px;
+  grid-template-rows: auto 24px minmax(0, 1fr);
+  gap: 8px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.calendar-board.tab-panel.is-active {
+  display: grid;
 }
 
 .calendar-weekdays,
@@ -1163,7 +1169,6 @@ textarea:focus {
 
 .calendar-weekdays {
   gap: 8px;
-  margin-bottom: 6px;
   color: var(--muted);
   font-weight: 600;
 }
@@ -1171,14 +1176,17 @@ textarea:focus {
 .calendar-grid {
   gap: 8px;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  grid-template-rows: repeat(6, minmax(0, 1fr));
 }
 
 .calendar-day {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: 144px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
   background: #fff;
 }
 
@@ -1223,14 +1231,17 @@ textarea:focus {
 
 .calendar-day-plans {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   align-content: start;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .calendar-plan {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 8px;
+  padding: 6px 7px;
   background: #fff;
 }
 
@@ -1238,18 +1249,30 @@ textarea:focus {
   display: flex;
   justify-content: space-between;
   gap: 6px;
+  align-items: baseline;
 }
 
 .calendar-plan-head strong {
   color: var(--text);
+  overflow: hidden;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-plan-head time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .calendar-dish-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  max-height: 56px;
+  gap: 4px;
+  max-height: 48px;
   overflow: hidden;
+  margin-top: 4px;
 }
 
 .calendar-dish-tags span,
@@ -1257,9 +1280,14 @@ textarea:focus {
   border: 1px solid var(--line);
   background: #f3f6fa;
   border-radius: 999px;
-  padding: 0 7px;
-  min-height: 22px;
+  padding: 0 6px;
+  min-height: 20px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.8rem;
   font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .calendar-dish-tags em {
