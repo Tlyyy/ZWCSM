@@ -146,6 +146,9 @@ const elements = {
   discountLabel: document.querySelector("#discount-label"),
   finalTotal: document.querySelector("#final-total"),
   perPerson: document.querySelector("#per-person"),
+  reviewCard: document.querySelector("#review-card"),
+  reviewText: document.querySelector("#review-text"),
+  copyReview: document.querySelector("#copy-review"),
   weeklyList: document.querySelector("#weekly-list"),
   dishGrid: document.querySelector("#dish-grid"),
   candidateCount: document.querySelector("#candidate-count"),
@@ -1713,6 +1716,70 @@ function renderSummary() {
     elements.budgetStatus.textContent = `超预算 ${money(Math.abs(summary.budgetDiff))}`;
     elements.budgetStatus.classList.add("over");
   }
+
+  renderReviewText(summary, settings);
+}
+
+function getDishRoleSummary(plan) {
+  const vegetableCount = plan.filter(isVegetable).length;
+  const soupCount = plan.filter(isSoup).length;
+  const proteinCount = plan.filter(isProteinDish).length;
+  const bigDishCount = plan.filter(isBigDish).length;
+  const parts = [];
+  if (proteinCount > 0) parts.push(`${proteinCount}道下饭菜`);
+  if (vegetableCount > 0) parts.push(`${vegetableCount}道素菜`);
+  if (soupCount > 0) parts.push(`${soupCount}个汤`);
+  if (bigDishCount > 0) parts.push(`${bigDishCount}道硬菜`);
+  return parts.join("、") || "搭配均衡";
+}
+
+function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(currentPlan), settings = getSettings()) {
+  if (plan.length === 0) return "生成菜单后自动生成约 100 字好评。";
+  const dishNames = plan.map((dish) => dish.name);
+  const highlightDishes = dishNames.slice(0, 4).join("、");
+  const extraCount = Math.max(0, dishNames.length - 4);
+  const dishText = extraCount > 0 ? `${highlightDishes}等${dishNames.length}道菜` : `${highlightDishes}这${dishNames.length}道菜`;
+  const roleText = getDishRoleSummary(plan);
+  const budgetText =
+    Math.abs(summary.budgetDiff) <= settings.totalBudget * 0.05
+      ? "刚好卡在预算附近"
+      : summary.budgetDiff > 0
+        ? "价格还有余量"
+        : "稍微超一点但整体值得";
+
+  return `今天这桌搭配很稳，${dishText}覆盖了${roleText}，有下饭菜也有清爽搭配，口味不单一。折后 ${money(summary.finalTotal)}，人均 ${money(summary.perPerson)}，${budgetText}，${settings.peopleCount} 个人中午吃正合适。`;
+}
+
+function renderReviewText(summary, settings) {
+  if (!elements.reviewText || !elements.reviewCard) return;
+  const text = generateReviewText(currentPlan, summary, settings);
+  elements.reviewText.textContent = text;
+  elements.reviewCard.classList.toggle("is-empty", currentPlan.length === 0);
+}
+
+function copyReviewText() {
+  const text = elements.reviewText?.textContent?.trim() || "";
+  if (!text || currentPlan.length === 0) {
+    alert("先生成一套菜单，再复制好评。");
+    return;
+  }
+
+  const done = () => {
+    if (!elements.copyReview) return;
+    const original = elements.copyReview.textContent;
+    elements.copyReview.textContent = "已复制";
+    setTimeout(() => {
+      elements.copyReview.textContent = original;
+    }, 1200);
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      window.prompt("复制这段好评：", text);
+    });
+  } else {
+    window.prompt("复制这段好评：", text);
+  }
 }
 
 function renderPlan() {
@@ -2248,6 +2315,7 @@ function bindEvents() {
     renderCandidates();
     renderPlanSearchResults();
   });
+  elements.copyReview?.addEventListener("click", copyReviewText);
   elements.clearWeekly.addEventListener("click", () => {
     saveCurrentWeekPlans([]);
     renderWeeklyPlans();
