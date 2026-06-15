@@ -2028,16 +2028,19 @@ function renderWeeklyPlans() {
     .map(
       (plan) => `
         <li class="weekly-plan">
-          <strong>${plan.peopleCount} 人 · ${money(plan.total)}</strong>
-          <time>${new Date(plan.savedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time>
+          <div class="weekly-plan-head">
+            <strong>${plan.peopleCount} 人 · ${money(plan.total)}</strong>
+            <time>${new Date(plan.savedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time>
+          </div>
           <div class="weekly-dishes">
             ${plan.dishes
               .map(
                 (dish) => `
                   <div class="weekly-dish">
-                    <span>${dish.name}</span>
-                    <small>${dish.categories ? dish.categories.join(" · ") : dish.category}</small>
-                    <small>${getRatingText(dish.id)}</small>
+                    <div class="weekly-dish-main">
+                      <strong>${dish.name}</strong>
+                      <span>${dish.categories ? dish.categories.join(" · ") : dish.category} · ${getRatingText(dish.id)}</span>
+                    </div>
                     <div class="rating-control compact" aria-label="${dish.name}评分">${getRatingStars(dish.id)}</div>
                   </div>
                 `,

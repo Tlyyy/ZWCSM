@@ -850,10 +850,14 @@ textarea:focus {
 
 .menu-board {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: 390px minmax(0, 1fr);
   gap: 12px;
   height: 100%;
   min-height: 0;
+}
+
+.menu-board.tab-panel.is-active {
+  display: grid;
 }
 
 .section-title {
@@ -882,10 +886,26 @@ textarea:focus {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
+  overflow: hidden;
 }
 
 .menu-search {
   margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #d6dee9;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.menu-search span {
+  color: var(--brand);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 #candidate-count,
@@ -904,15 +924,17 @@ textarea:focus {
   overflow: auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  align-content: start;
   gap: 10px;
+  padding-right: 2px;
 }
 
 .dish-chip {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 160px;
+  gap: 7px;
+  min-height: 145px;
   background: #fff;
 }
 
@@ -931,8 +953,10 @@ textarea:focus {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  min-height: 42px;
+  min-height: 38px;
   overflow: hidden;
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .dish-rating {
@@ -1004,28 +1028,42 @@ textarea:focus {
 }
 
 .recent-card {
-  position: sticky;
-  top: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: auto;
-  max-height: 100%;
+  height: 100%;
+  border-top: 4px solid var(--brand);
 }
 
 .weekly-list {
   margin: 0;
-  padding-left: 22px;
+  padding: 0;
   display: grid;
   gap: 8px;
+  overflow: auto;
+  min-height: 0;
+  list-style: none;
 }
 
 .weekly-list li {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px 11px;
+  padding: 10px;
+  background: #fff;
 }
 
 .weekly-plan {
   display: grid;
+  gap: 10px;
+}
+
+.weekly-plan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edf1f6;
 }
 
 .weekly-plan time {
@@ -1035,12 +1073,53 @@ textarea:focus {
 
 .weekly-dishes {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .weekly-dish {
-  border-top: 1px dashed var(--line);
-  padding-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px dashed #e4e9f1;
+}
+
+.weekly-dish:last-child {
+  border-bottom: 0;
+}
+
+.weekly-dish-main {
+  min-width: 0;
+}
+
+.weekly-dish-main strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekly-dish-main span {
+  display: block;
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekly-dish .rating-control {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  max-width: 150px;
+}
+
+.weekly-dish .star-button {
+  width: 24px;
+  height: 24px;
 }
 
 .calendar-board {
