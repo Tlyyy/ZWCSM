@@ -187,6 +187,12 @@ function activateTab(tabName) {
   const fallbackTab = "planner";
   const availableTabs = [...elements.tabButtons].map((button) => button.dataset.tab);
   const nextTab = availableTabs.includes(tabName) ? tabName : fallbackTab;
+  const currentTab = [...elements.tabButtons].find((button) => button.classList.contains("is-active"))?.dataset.tab;
+
+  if (currentTab === nextTab) {
+    localStorage.setItem(activeTabKey, nextTab);
+    return;
+  }
 
   elements.tabButtons.forEach((button) => {
     const isActive = button.dataset.tab === nextTab;
@@ -2200,7 +2206,10 @@ function handleClearRatingClick(event) {
 
 function bindEvents() {
   elements.tabButtons.forEach((button) => {
-    button.addEventListener("click", () => activateTab(button.dataset.tab));
+    button.addEventListener("click", () => {
+      activateTab(button.dataset.tab);
+      button.blur();
+    });
   });
 
   elements.addCategoryButton?.addEventListener("click", () => {

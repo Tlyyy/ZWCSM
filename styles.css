@@ -24,6 +24,11 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -114,10 +119,28 @@ button:disabled {
 }
 
 .tab-button {
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+  color: var(--text);
+  transition: none;
+}
+
+.tab-button:active {
+  transform: none;
+}
+
+.tab-button:focus {
+  outline: none;
+}
+
+.tab-button:focus-visible {
+  outline: 2px solid rgba(15, 118, 110, 0.28);
+  outline-offset: 2px;
 }
 
 .tab-button.is-active {
