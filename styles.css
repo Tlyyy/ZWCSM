@@ -34,7 +34,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -129,6 +130,10 @@ button:disabled {
   display: none;
 }
 
+.tab-panel:not(.is-active) {
+  display: none !important;
+}
+
 .tab-panel.is-active {
   display: block;
 }
@@ -177,7 +182,7 @@ button:disabled {
 
 .sync-card {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .sync-tools {
@@ -189,7 +194,67 @@ button:disabled {
 
 .sync-path {
   display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.sync-code-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+}
+
+.sync-code-panel.compact {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.sync-code-actions {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 180px;
+}
+
+.sync-code-field,
+.sync-room-field {
+  display: grid;
   gap: 6px;
+}
+
+.sync-code-field span,
+.sync-room-field span,
+.sync-path span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.sync-code-field textarea {
+  min-height: 116px;
+  padding: 10px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.cloud-sync-advanced {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.cloud-sync-advanced summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.cloud-sync-advanced .sync-path {
+  margin-top: 12px;
 }
 
 .sync-status {

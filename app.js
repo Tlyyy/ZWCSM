@@ -107,6 +107,10 @@ const activeTabKey = "lunch-picker-active-tab-v1";
 const categoryDataKey = "lunch-picker-category-data-v1";
 const categoryDataVersion = 2;
 const cloudSyncConfigKey = "lunch-picker-cloud-sync-config-v1";
+const supabaseRoomKey = "lunch-picker-supabase-room-v1";
+const supabaseAutoSyncKey = "lunch-picker-supabase-auto-sync-v1";
+const supabaseRestUrl = "https://imngjwetsqqjjibfizfb.supabase.co/rest/v1";
+const supabasePublishableKey = "sb_publishable_b6Em1XU-eeO_nLwv9SlPZQ_n0Bcp1Ek";
 const DEFAULT_CATEGORY = "未分类";
 const exclusionTags = ["内脏", "鱼类", "豆制品", "汤类", "辣口", "干锅", "大菜", "高价菜", "重口菜"];
 
@@ -168,6 +172,10 @@ const elements = {
   cloudPull: document.querySelector("#cloud-pull"),
   cloudPush: document.querySelector("#cloud-push"),
   cloudSyncToggle: document.querySelector("#cloud-sync-toggle"),
+  supabaseRoom: document.querySelector("#supabase-room"),
+  supabasePull: document.querySelector("#supabase-pull"),
+  supabasePush: document.querySelector("#supabase-push"),
+  supabaseAutoToggle: document.querySelector("#supabase-auto-toggle"),
   cloudSyncCode: document.querySelector("#cloud-sync-code"),
   cloudCopyCode: document.querySelector("#cloud-copy-code"),
   cloudApplyCode: document.querySelector("#cloud-apply-code"),
@@ -254,6 +262,10 @@ function saveCloudSyncConfig(nextConfig) {
 let cloudDebounceTimer = null;
 let autoSyncTimer = null;
 let isAutoSyncRunning = false;
+let supabaseDebounceTimer = null;
+let supabaseAutoTimer = null;
+let isSupabaseAutoSyncRunning = false;
+let isApplyingRemoteState = false;
 
 function buildSyncPayload() {
   return {
@@ -265,6 +277,156 @@ function buildSyncPayload() {
     dishRatings: readJsonStorage(dishRatingsKey, {}),
     activeTab: localStorage.getItem(activeTabKey) || "planner",
   };
+}
+
+function getSupabaseRoom() {
+  const raw = elements.supabaseRoom?.value || localStorage.getItem(supabaseRoomKey) || "zwcsm";
+  return String(raw).trim() || "zwcsm";
+}
+
+function saveSupabaseRoom() {
+  localStorage.setItem(supabaseRoomKey, getSupabaseRoom());
+}
+
+function isSupabaseAutoSyncEnabled() {
+  return localStorage.getItem(supabaseAutoSyncKey) === "true";
+}
+
+function setSupabaseAutoSyncEnabled(enabled) {
+  localStorage.setItem(supabaseAutoSyncKey, String(enabled));
+}
+
+function getSupabaseHeaders(extra = {}) {
+  return {
+    apikey: supabasePublishableKey,
+    Authorization: `Bearer ${supabasePublishableKey}`,
+    "Content-Type": "application/json",
+    ...extra,
+  };
+}
+
+async function callSupabase(path, options = {}) {
+  const response = await fetch(`${supabaseRestUrl}${path}`, {
+    ...options,
+    headers: getSupabaseHeaders(options.headers || {}),
+  });
+  const text = await response.text();
+  const result = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    const message = result?.message || result?.hint || response.statusText;
+    throw new Error(message);
+  }
+  return result;
+}
+
+async function pullSupabaseState({ silent = false } = {}) {
+  saveSupabaseRoom();
+  const roomId = getSupabaseRoom();
+  const rows = await callSupabase(
+    `/lunch_states?room_id=eq.${encodeURIComponent(roomId)}&select=data,updated_at&limit=1`,
+  );
+
+  if (!rows || rows.length === 0) {
+    if (!silent) setSyncStatus(`云端还没有房间「${roomId}」的数据，先上传一次。`, "warning");
+    return false;
+  }
+
+  isApplyingRemoteState = true;
+  try {
+    applySyncPayload(rows[0].data);
+    currentPlan = [];
+    fixedDishIds = new Set();
+    refreshAllViews();
+  } finally {
+    isApplyingRemoteState = false;
+  }
+
+  if (!silent) {
+    const updatedAt = rows[0].updated_at ? new Date(rows[0].updated_at).toLocaleString("zh-CN") : "未知时间";
+    setSyncStatus(`已拉取房间「${roomId}」的数据（${updatedAt}）。`, "ok");
+  }
+  return true;
+}
+
+async function pushSupabaseState({ silent = false } = {}) {
+  saveSupabaseRoom();
+  const roomId = getSupabaseRoom();
+  await callSupabase("/lunch_states?on_conflict=room_id", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      room_id: roomId,
+      data: buildSyncPayload(),
+      updated_at: new Date().toISOString(),
+    }),
+  });
+
+  if (!silent) setSyncStatus(`已上传到房间「${roomId}」。`, "ok");
+  return true;
+}
+
+function scheduleSupabaseSync() {
+  if (isApplyingRemoteState || !isSupabaseAutoSyncEnabled()) return;
+  clearTimeout(supabaseDebounceTimer);
+  supabaseDebounceTimer = setTimeout(async () => {
+    try {
+      await pushSupabaseState({ silent: true });
+      setSyncStatus(`已自动同步到房间「${getSupabaseRoom()}」。`, "ok");
+    } catch (error) {
+      setSyncStatus(`Supabase 自动同步失败：${error.message}`, "danger");
+      console.error("Supabase auto sync failed:", error);
+    }
+  }, 1000);
+}
+
+async function syncSupabaseNow(action) {
+  try {
+    if (action === "pull") {
+      await pullSupabaseState();
+    } else {
+      await pushSupabaseState();
+    }
+  } catch (error) {
+    setSyncStatus(`Supabase 同步失败：${error.message}`, "danger");
+    console.error("Supabase sync failed:", error);
+  }
+}
+
+function startSupabaseAutoSync() {
+  if (!isSupabaseAutoSyncEnabled()) return;
+  if (isSupabaseAutoSyncRunning) return;
+  isSupabaseAutoSyncRunning = true;
+  if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.textContent = "关闭自动同步";
+  pullSupabaseState({ silent: true }).catch((error) => {
+    setSyncStatus(`自动拉取失败：${error.message}`, "danger");
+  });
+  supabaseAutoTimer = setInterval(() => {
+    pullSupabaseState({ silent: true }).catch((error) => {
+      setSyncStatus(`自动拉取失败：${error.message}`, "danger");
+    });
+  }, 30000);
+  setSyncStatus(`已开启 Supabase 自动同步：${getSupabaseRoom()}`, "ok");
+}
+
+function stopSupabaseAutoSync() {
+  clearInterval(supabaseAutoTimer);
+  supabaseAutoTimer = null;
+  isSupabaseAutoSyncRunning = false;
+  if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.textContent = "开启自动同步";
+}
+
+function toggleSupabaseAutoSync() {
+  saveSupabaseRoom();
+  const nextEnabled = !isSupabaseAutoSyncEnabled();
+  setSupabaseAutoSyncEnabled(nextEnabled);
+  if (nextEnabled) {
+    startSupabaseAutoSync();
+  } else {
+    stopSupabaseAutoSync();
+    setSyncStatus("已关闭 Supabase 自动同步。", "warning");
+  }
 }
 
 function normalizeGithubPath(path) {
@@ -386,6 +548,7 @@ async function pushCloudState() {
 }
 
 function scheduleCloudSync() {
+  scheduleSupabaseSync();
   const config = getCloudSyncConfig();
   if (!config.autoSync) return;
 
@@ -2177,6 +2340,15 @@ function bindEvents() {
   if (elements.cloudPull) elements.cloudPull.addEventListener("click", () => syncNow("pull"));
   if (elements.cloudPush) elements.cloudPush.addEventListener("click", () => syncNow("push"));
   if (elements.cloudSyncToggle) elements.cloudSyncToggle.addEventListener("click", toggleAutoSync);
+  if (elements.supabaseRoom) {
+    elements.supabaseRoom.addEventListener("change", () => {
+      saveSupabaseRoom();
+      setSyncStatus(`已切换同步房间：${getSupabaseRoom()}`, "ok");
+    });
+  }
+  if (elements.supabasePull) elements.supabasePull.addEventListener("click", () => syncSupabaseNow("pull"));
+  if (elements.supabasePush) elements.supabasePush.addEventListener("click", () => syncSupabaseNow("push"));
+  if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.addEventListener("click", toggleSupabaseAutoSync);
   if (elements.clearSyncData) elements.clearSyncData.addEventListener("click", clearSyncDataState);
   if (elements.cloudCopyCode) elements.cloudCopyCode.addEventListener("click", copySyncCode);
   if (elements.cloudApplyCode) elements.cloudApplyCode.addEventListener("click", applySyncCodeFromPrompt);
@@ -2193,7 +2365,11 @@ if (elements.cloudBranch) elements.cloudBranch.value = initialCloudConfig.branch
 if (elements.cloudPath) elements.cloudPath.value = initialCloudConfig.path || "data/zwcsm-state.json";
 if (elements.cloudToken) elements.cloudToken.value = "";
 if (elements.cloudSyncToggle) elements.cloudSyncToggle.textContent = initialCloudConfig.autoSync ? "关闭自动同步" : "开启自动同步";
-setSyncStatus("当前数据默认保存在当前浏览器，可用“复制同步码/恢复同步码”跨设备同步。");
+if (elements.supabaseRoom) elements.supabaseRoom.value = localStorage.getItem(supabaseRoomKey) || "zwcsm";
+if (elements.supabaseAutoToggle) {
+  elements.supabaseAutoToggle.textContent = isSupabaseAutoSyncEnabled() ? "关闭自动同步" : "开启自动同步";
+}
+setSyncStatus("当前数据默认保存在当前浏览器，可用 Supabase 房间号跨设备同步。");
 normalizeInputs();
 renderPlan();
 renderPlanSearchResults();
@@ -2205,4 +2381,8 @@ activateTab(localStorage.getItem(activeTabKey) || "planner");
 
 if (initialCloudConfig.autoSync) {
   startAutoSync();
+}
+
+if (isSupabaseAutoSyncEnabled()) {
+  startSupabaseAutoSync();
 }
