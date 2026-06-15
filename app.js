@@ -1760,8 +1760,6 @@ function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(c
     : vegetableDish
       ? `${vegetableDish.name}炒得清爽，配重口小炒正好。`
       : "整体火候在线，吃起来很有家常味。";
-  const finalTotalText = money(summary.finalTotal).replace(" ", "");
-  const perPersonText = money(summary.perPerson).replace(" ", "");
   const variant = currentReviewVariant;
   const openings = [
     "这家江西小炒真的可以冲",
@@ -1803,21 +1801,21 @@ function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(c
     "出菜速度也可以，适合中午赶时间来吃",
     "店里不用搞得很复杂，重点就是饭菜热乎好吃",
     "分量给得比较实在，几个人一起点很划算",
-    "整体价格不虚，人均吃下来压力不大",
+    "整体吃下来很舒服，不会觉得油腻负担",
     "这种店就是胜在稳定，想吃家常菜时很省心",
     "口味比较接地气，适合附近上班族日常吃",
     "菜品选择多，几个人来点一桌很方便",
     "不想吃外卖的时候，来这里吃现炒更舒服",
   ];
   const valueLines = [
-    `${settings.peopleCount}个人吃下来人均${perPersonText}，性价比在线`,
-    `折后总价${finalTotalText}，这个分量和味道我觉得可以`,
-    `人均${perPersonText}能吃到现炒热菜，挺适合工作餐`,
-    `${settings.peopleCount}个人点这一桌刚好，价格和分量都舒服`,
-    "按这个人均来说，比随便点外卖满足多了",
-    "价格不夸张，吃完有饱腹感也有满足感",
-    "这个价位能吃到锅气小炒，我觉得挺值",
-    "人均控制得住，味道也不是将就的水平",
+    "几个人一起吃也很合适，热热闹闹刚刚好",
+    "整体分量挺实在，吃完很有满足感",
+    "比随便点外卖舒服多了，现炒热菜还是不一样",
+    "中午来吃很省心，点一桌大家都能夹几口",
+    "口味和分量都在线，不是随便糊弄的水平",
+    "吃完不会觉得腻，反而还想下次再试别的菜",
+    "很适合工作日午餐，吃得热乎也吃得踏实",
+    "这类家常小炒就是要这样，简单直接又下饭",
   ];
   const closings = [
     "下次想吃江西小炒还会再来。",
