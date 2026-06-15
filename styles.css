@@ -327,8 +327,17 @@ legend,
 #rating-count,
 #category-count,
 .category-form span,
-.rating-status,
+.rating-status {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .plan-title-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1 1 auto;
   color: var(--muted);
   font-size: 0.9rem;
 }
@@ -389,7 +398,7 @@ textarea:focus {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .plan-card,
@@ -401,6 +410,7 @@ textarea:focus {
 .plan-card {
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
+  border-top: 4px solid var(--brand);
 }
 
 .plan-heading {
@@ -439,6 +449,7 @@ textarea:focus {
   color: var(--muted);
   background: #f1f5f9;
   min-width: 160px;
+  flex: 0 0 auto;
   text-align: right;
   font-weight: 600;
 }
@@ -455,21 +466,35 @@ textarea:focus {
 
 .plan-picker {
   position: relative;
-  width: 400px;
+  width: 440px;
+  flex: 0 1 440px;
   max-width: 100%;
   z-index: 5;
 }
 
 .plan-picker label {
-  display: grid;
-  grid-template-columns: 68px minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 38px;
-  padding: 3px 9px;
-  border: 1px solid #cfd8e5;
-  border-radius: 8px;
+  padding: 0 12px;
+  border: 1px solid #d6dee9;
+  border-radius: 999px;
   background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.03);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.plan-picker label:focus-within {
+  border-color: #b91c1c;
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.1);
+}
+
+.plan-picker label span {
+  flex: 0 0 auto;
+  color: var(--brand);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .plan-picker input,
@@ -735,8 +760,9 @@ textarea:focus {
 
 .summary-card {
   position: sticky;
-  top: 12px;
+  top: 0;
   border-top: 4px solid var(--brand);
+  align-self: start;
 }
 
 .review-card {
