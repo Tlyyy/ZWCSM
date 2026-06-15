@@ -2142,6 +2142,7 @@ function renderCandidates() {
       const isFixed = fixedDishIds.has(dish.id);
       const state = getDishFilterState(dish, settings);
       const statusPills = [
+        `<span class="dish-rating">${getRatingText(dish.id)}</span>`,
         isFixed ? '<em class="source-pill fixed">已固定</em>' : "",
         state.eatenThisWeek ? '<em class="source-pill muted">本周已吃</em>' : "",
         state.lowRated ? '<em class="source-pill warning">低分</em>' : "",
@@ -2154,7 +2155,6 @@ function renderCandidates() {
           </div>
           <span class="dish-meta">${getDishLabel(dish)}</span>
           ${getDishCategorySelect(dish, "inline-category-select", "data-menu-category-id")}
-          <span class="dish-rating">${getRatingText(dish.id)}</span>
           <div class="dish-chip-footer">
             <div class="dish-status">${statusPills}</div>
             <button class="mini-action" type="button" data-add-id="${dish.id}" ${isFixed ? "disabled" : ""}>
