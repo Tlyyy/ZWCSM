@@ -79,7 +79,7 @@ const baseDishes = [
   { name: "红烧带鱼", price: 45, category: "盖菜类", type: "fish" },
   { name: "土炒鸡", price: 35, category: "盖菜类" },
   { name: "尖椒猪耳朵", price: 38, category: "盖菜类" },
-  { name: "农家香小炒肉", price: 32, category: "盖菜类" },
+  { name: "农家小炒肉", price: 32, category: "盖菜类" },
   { name: "红烧排骨仔排", price: 48, category: "盖菜类" },
   { name: "辣子鸡", price: 35, category: "盖菜类" },
   { name: "土猪腊肉", price: 58, category: "盖菜类" },
