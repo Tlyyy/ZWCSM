@@ -119,6 +119,7 @@ let categoryCatalog = [];
 let currentPlan = [];
 let fixedDishIds = new Set();
 let calendarDate = new Date();
+let currentReviewVariant = 0;
 
 const elements = {
   tabButtons: document.querySelectorAll("[data-tab]"),
@@ -149,6 +150,7 @@ const elements = {
   reviewCard: document.querySelector("#review-card"),
   reviewText: document.querySelector("#review-text"),
   copyReview: document.querySelector("#copy-review"),
+  shuffleReview: document.querySelector("#shuffle-review"),
   weeklyList: document.querySelector("#weekly-list"),
   dishGrid: document.querySelector("#dish-grid"),
   candidateCount: document.querySelector("#candidate-count"),
@@ -1737,8 +1739,9 @@ function hashText(text) {
   return [...text].reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0, 0);
 }
 
-function pickStableOption(options, seed) {
-  return options[Math.abs(hashText(seed)) % options.length];
+function pickReviewPart(options, seed, variant, offset = 0) {
+  const index = Math.abs(hashText(`${seed}|${variant}|${offset}`)) % options.length;
+  return options[index];
 }
 
 function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(currentPlan), settings = getSettings()) {
@@ -1757,21 +1760,86 @@ function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(c
     : vegetableDish
       ? `${vegetableDish.name}炒得清爽，配重口小炒正好。`
       : "整体火候在线，吃起来很有家常味。";
-  const budgetText =
-    Math.abs(summary.budgetDiff) <= settings.totalBudget * 0.05
-      ? "价格也刚好"
-      : summary.budgetDiff > 0
-        ? "性价比不错"
-        : "稍微超一点但能接受";
   const finalTotalText = money(summary.finalTotal).replace(" ", "");
   const perPersonText = money(summary.perPerson).replace(" ", "");
-  const templates = [
-    `这家江西小炒可以冲，现炒的锅气很足，${dishText}都很下饭，尤其${bigDish.name}火候挺稳。${tasteLine}${settings.peopleCount}个人吃下来人均${perPersonText}，分量和价格都不错，中午工作餐很合适。`,
-    `今天这家店没踩雷，江西小炒就是要这种猛火快炒的香味，${dishText}端上来热乎、有锅气。${tasteLine}折后总价${finalTotalText}，人均${perPersonText}，性价比在线，下次还会来。`,
-    `喜欢这种家常江西小炒，味道够香、够下饭，${comboText}这一桌点得很舒服。${tasteLine}店里出品挺稳，${settings.peopleCount}个人吃人均${perPersonText}，适合附近上班中午来吃。`,
+  const variant = currentReviewVariant;
+  const openings = [
+    "这家江西小炒真的可以冲",
+    "附近想吃热乎小炒可以来这家",
+    "今天这顿江西小炒没踩雷",
+    "这家小炒店蛮有烟火气",
+    "工作日午餐选这家挺稳",
+    "喜欢锅气重的可以试试这家",
+    "这家江西小炒属于会回头的类型",
+    "想吃下饭菜的时候这家很合适",
+    "这顿小炒吃完挺满足",
+    "这家店给我的感觉就是实在",
+  ];
+  const wokLines = [
+    "菜都是现炒端上来，热气和锅气都很明显",
+    "猛火快炒的香味一上桌就有了，闻着就开胃",
+    "小炒该有的锅气在线，不是那种冷冰冰的口感",
+    "端上来还是热乎的，家常小炒的香味很足",
+    "火候拿捏得不错，吃得出是现炒出来的",
+    "整体是咸香下饭的路子，很适合配米饭",
+    "辣味和香味都比较直接，越吃越想扒饭",
+    "不是精致摆盘那种，胜在热乎、实在、有锅气",
+    "青椒蒜香和油香都出来了，就是江西小炒那口",
+    "上桌第一口就觉得有烟火气，挺对胃口",
+  ];
+  const dishLines = [
+    `${dishText}都挺下饭，尤其${bigDish.name}味道很稳`,
+    `${comboText}放在一起很舒服，咸香有层次`,
+    `${dishText}点得不花哨，但每道都能配饭`,
+    `这桌里${bigDish.name}比较突出，香味和火候都不错`,
+    `${comboText}很适合几个人分着吃，口味不单调`,
+    `${dishText}吃下来没有明显短板，家常但顺口`,
+    `${bigDish.name}做得挺入味，配其他菜刚刚好`,
+    `${dishText}属于越吃越香的类型，米饭很容易不够`,
+    `这几道菜搭在一起很像日常会回购的工作餐`,
+    `${comboText}这一桌比较实在，吃完不会觉得亏`,
+  ];
+  const serviceLines = [
+    "出菜速度也可以，适合中午赶时间来吃",
+    "店里不用搞得很复杂，重点就是饭菜热乎好吃",
+    "分量给得比较实在，几个人一起点很划算",
+    "整体价格不虚，人均吃下来压力不大",
+    "这种店就是胜在稳定，想吃家常菜时很省心",
+    "口味比较接地气，适合附近上班族日常吃",
+    "菜品选择多，几个人来点一桌很方便",
+    "不想吃外卖的时候，来这里吃现炒更舒服",
+  ];
+  const valueLines = [
+    `${settings.peopleCount}个人吃下来人均${perPersonText}，性价比在线`,
+    `折后总价${finalTotalText}，这个分量和味道我觉得可以`,
+    `人均${perPersonText}能吃到现炒热菜，挺适合工作餐`,
+    `${settings.peopleCount}个人点这一桌刚好，价格和分量都舒服`,
+    "按这个人均来说，比随便点外卖满足多了",
+    "价格不夸张，吃完有饱腹感也有满足感",
+    "这个价位能吃到锅气小炒，我觉得挺值",
+    "人均控制得住，味道也不是将就的水平",
+  ];
+  const closings = [
+    "下次想吃江西小炒还会再来。",
+    "适合收藏成中午不知道吃什么时的备选。",
+    "附近上班的话，这家可以放进常吃清单。",
+    "想吃热乎、下饭、带锅气的，可以试试。",
+    "整体是会推荐给同事的一家小炒店。",
+    "不是网红噱头，胜在实在好吃。",
+    "喜欢家常重口小炒的应该会满意。",
+    "这一顿吃完，下午上班都踏实了。",
   ];
 
-  return pickStableOption(templates, seed);
+  const opening = pickReviewPart(openings, seed, variant, 1);
+  const wokLine = pickReviewPart(wokLines, seed, variant, 2);
+  const dishLine = pickReviewPart(dishLines, seed, variant, 3);
+  const serviceLine = pickReviewPart(serviceLines, seed, variant, 4);
+  const valueLine = pickReviewPart(valueLines, seed, variant, 5);
+  const closing = pickReviewPart(closings, seed, variant, 6);
+  const detailLine = variant % 3 === 0 ? tasteLine : serviceLine;
+  const detailText = detailLine.endsWith("。") ? detailLine : `${detailLine}。`;
+
+  return `${opening}，${wokLine}。${dishLine}，${detailText}${valueLine}，${closing}`;
 }
 
 function renderReviewText(summary, settings) {
@@ -1779,6 +1847,15 @@ function renderReviewText(summary, settings) {
   const text = generateReviewText(currentPlan, summary, settings);
   elements.reviewText.textContent = text;
   elements.reviewCard.classList.toggle("is-empty", currentPlan.length === 0);
+}
+
+function shuffleReviewText() {
+  if (currentPlan.length === 0) {
+    alert("先生成一套菜单，再换好评文案。");
+    return;
+  }
+  currentReviewVariant += 1;
+  renderSummary();
 }
 
 function copyReviewText() {
@@ -2180,6 +2257,7 @@ function generateMealPlan() {
 
   const availableCandidates = [...new Map([...fixedDishes, ...candidates].map((dish) => [dish.id, dish])).values()];
   currentPlan = generateBalancedPlan(availableCandidates, getSettings(), fixedDishes);
+  currentReviewVariant += 1;
   renderPlan();
   renderCandidates();
 }
@@ -2340,6 +2418,7 @@ function bindEvents() {
     renderPlanSearchResults();
   });
   elements.copyReview?.addEventListener("click", copyReviewText);
+  elements.shuffleReview?.addEventListener("click", shuffleReviewText);
   elements.clearWeekly.addEventListener("click", () => {
     saveCurrentWeekPlans([]);
     renderWeeklyPlans();

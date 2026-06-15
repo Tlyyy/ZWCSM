@@ -765,6 +765,13 @@ textarea:focus {
   color: var(--brand);
 }
 
+.review-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .copy-review {
   min-height: 28px;
   padding: 0 9px;
