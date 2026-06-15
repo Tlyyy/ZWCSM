@@ -25,13 +25,15 @@
 }
 
 html {
+  height: 100%;
   overflow-y: scroll;
   scrollbar-gutter: stable;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   color: var(--text);
   background:
     linear-gradient(180deg, #fafafa 0%, var(--bg) 260px),
@@ -57,12 +59,13 @@ button:disabled {
 
 .app-shell {
   width: min(1480px, calc(100% - 28px));
-  min-height: 100vh;
+  height: 100vh;
   margin: 0 auto;
   padding: 10px 0 16px;
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 9px;
+  overflow: hidden;
 }
 
 .hero {
@@ -169,12 +172,15 @@ button:disabled {
 
 .tab-panel.is-active {
   display: block;
+  min-height: 0;
+  height: 100%;
 }
 
 [data-tab-panel="planner"].is-active {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
+  min-height: 0;
 }
 
 .control-panel,
@@ -399,6 +405,8 @@ textarea:focus {
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 12px;
   align-items: stretch;
+  min-height: 0;
+  height: 100%;
 }
 
 .plan-card,
@@ -410,6 +418,7 @@ textarea:focus {
 .plan-card {
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
+  overflow: hidden;
   border-top: 4px solid var(--brand);
 }
 
@@ -562,7 +571,7 @@ textarea:focus {
   display: grid;
   gap: 8px;
   min-height: 0;
-  max-height: calc(100vh - 410px);
+  height: 100%;
   overflow: auto;
   padding-right: 2px;
 }
@@ -759,10 +768,10 @@ textarea:focus {
 }
 
 .summary-card {
-  position: sticky;
-  top: 0;
   border-top: 4px solid var(--brand);
-  align-self: start;
+  align-self: stretch;
+  max-height: 100%;
+  overflow: auto;
 }
 
 .review-card {
