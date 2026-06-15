@@ -1753,20 +1753,22 @@ function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(c
   const otherDishNames = dishNames.filter((name) => name !== bigDish.name).slice(0, 3);
   const comboText = otherDishNames.length > 0 ? `${bigDish.name}配${otherDishNames.join("、")}` : dishText;
   const tasteLine = soupDish
-    ? `${soupDish.name}喝着顺口，配着吃刚好。`
+    ? `${soupDish.name}也做得顺口，配小炒很舒服。`
     : vegetableDish
-      ? `${vegetableDish.name}比较清爽，配着吃不容易腻。`
-      : "整体口味有轻有重，吃起来不单调。";
+      ? `${vegetableDish.name}炒得清爽，配重口小炒正好。`
+      : "整体火候在线，吃起来很有家常味。";
   const budgetText =
     Math.abs(summary.budgetDiff) <= settings.totalBudget * 0.05
       ? "价格也刚好"
       : summary.budgetDiff > 0
         ? "性价比不错"
         : "稍微超一点但能接受";
+  const finalTotalText = money(summary.finalTotal).replace(" ", "");
+  const perPersonText = money(summary.perPerson).replace(" ", "");
   const templates = [
-    `今天这顿吃得挺满意，${dishText}都比较下饭，尤其${bigDish.name}味道很稳，分量也够。${tasteLine}${settings.peopleCount}个人吃下来人均${money(summary.perPerson)}，${budgetText}，中午这样点很合适。`,
-    `这桌菜整体挺舒服，${dishText}搭在一起不腻，有下饭的也有清爽的。${tasteLine}折后总价${money(summary.finalTotal)}，人均${money(summary.perPerson)}，价格和分量都还可以，下次中午还会这样点。`,
-    `今天这套餐没有踩雷，${comboText}放在一起吃刚好，味道和分量都在线。${tasteLine}${settings.peopleCount}个人吃人均${money(summary.perPerson)}，整体实惠，适合工作日午餐。`,
+    `这家江西小炒可以冲，现炒的锅气很足，${dishText}都很下饭，尤其${bigDish.name}火候挺稳。${tasteLine}${settings.peopleCount}个人吃下来人均${perPersonText}，分量和价格都不错，中午工作餐很合适。`,
+    `今天这家店没踩雷，江西小炒就是要这种猛火快炒的香味，${dishText}端上来热乎、有锅气。${tasteLine}折后总价${finalTotalText}，人均${perPersonText}，性价比在线，下次还会来。`,
+    `喜欢这种家常江西小炒，味道够香、够下饭，${comboText}这一桌点得很舒服。${tasteLine}店里出品挺稳，${settings.peopleCount}个人吃人均${perPersonText}，适合附近上班中午来吃。`,
   ];
 
   return pickStableOption(templates, seed);
