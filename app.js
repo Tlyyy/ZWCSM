@@ -1733,21 +1733,43 @@ function getDishRoleSummary(plan) {
   return parts.join("、") || "搭配均衡";
 }
 
+function hashText(text) {
+  return [...text].reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0, 0);
+}
+
+function pickStableOption(options, seed) {
+  return options[Math.abs(hashText(seed)) % options.length];
+}
+
 function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(currentPlan), settings = getSettings()) {
   if (plan.length === 0) return "生成菜单后自动生成约 100 字好评。";
   const dishNames = plan.map((dish) => dish.name);
-  const highlightDishes = dishNames.slice(0, 4).join("、");
-  const extraCount = Math.max(0, dishNames.length - 4);
-  const dishText = extraCount > 0 ? `${highlightDishes}等${dishNames.length}道菜` : `${highlightDishes}这${dishNames.length}道菜`;
-  const roleText = getDishRoleSummary(plan);
+  const seed = dishNames.join("|");
+  const highlightDishes = dishNames.slice(0, 3).join("、");
+  const dishText = dishNames.length > 3 ? `${highlightDishes}这些菜` : `${highlightDishes}这几道菜`;
+  const soupDish = plan.find(isSoup);
+  const vegetableDish = plan.find(isVegetable);
+  const bigDish = plan.find(isBigDish) || plan.find(isProteinDish) || plan[0];
+  const otherDishNames = dishNames.filter((name) => name !== bigDish.name).slice(0, 3);
+  const comboText = otherDishNames.length > 0 ? `${bigDish.name}配${otherDishNames.join("、")}` : dishText;
+  const tasteLine = soupDish
+    ? `${soupDish.name}喝着顺口，配着吃刚好。`
+    : vegetableDish
+      ? `${vegetableDish.name}比较清爽，配着吃不容易腻。`
+      : "整体口味有轻有重，吃起来不单调。";
   const budgetText =
     Math.abs(summary.budgetDiff) <= settings.totalBudget * 0.05
-      ? "刚好卡在预算附近"
+      ? "价格也刚好"
       : summary.budgetDiff > 0
-        ? "价格还有余量"
-        : "稍微超一点但整体值得";
+        ? "性价比不错"
+        : "稍微超一点但能接受";
+  const templates = [
+    `今天这顿吃得挺满意，${dishText}都比较下饭，尤其${bigDish.name}味道很稳，分量也够。${tasteLine}${settings.peopleCount}个人吃下来人均${money(summary.perPerson)}，${budgetText}，中午这样点很合适。`,
+    `这桌菜整体挺舒服，${dishText}搭在一起不腻，有下饭的也有清爽的。${tasteLine}折后总价${money(summary.finalTotal)}，人均${money(summary.perPerson)}，价格和分量都还可以，下次中午还会这样点。`,
+    `今天这套餐没有踩雷，${comboText}放在一起吃刚好，味道和分量都在线。${tasteLine}${settings.peopleCount}个人吃人均${money(summary.perPerson)}，整体实惠，适合工作日午餐。`,
+  ];
 
-  return `今天这桌搭配很稳，${dishText}覆盖了${roleText}，有下饭菜也有清爽搭配，口味不单一。折后 ${money(summary.finalTotal)}，人均 ${money(summary.perPerson)}，${budgetText}，${settings.peopleCount} 个人中午吃正合适。`;
+  return pickStableOption(templates, seed);
 }
 
 function renderReviewText(summary, settings) {
