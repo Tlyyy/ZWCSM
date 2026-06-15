@@ -1,15 +1,15 @@
 :root {
-  --bg: #f7f8fa;
+  --bg: #f4f6f8;
   --card: #ffffff;
   --text: #1f2937;
   --muted: #6b7280;
-  --line: #d9dee6;
+  --line: #d7dee8;
   --brand: #0f766e;
-  --brand-2: #0d5f58;
+  --brand-2: #0b5f59;
   --success: #168f4f;
   --warning: #b45309;
   --danger: #b91c1c;
-  --shadow: 0 6px 22px rgba(15, 23, 42, 0.08);
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
   --radius-lg: 12px;
   --radius-md: 10px;
   --radius-sm: 8px;
@@ -54,23 +54,24 @@ button:disabled {
 }
 
 .app-shell {
-  width: min(1440px, calc(100% - 24px));
+  width: min(1480px, calc(100% - 28px));
   min-height: 100vh;
   margin: 0 auto;
-  padding: 12px 0 16px;
+  padding: 10px 0 16px;
   display: grid;
   grid-template-rows: auto auto 1fr;
-  gap: 10px;
+  gap: 9px;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: 16px;
+  min-height: 64px;
+  padding: 10px 14px;
   color: #fff;
-  background: linear-gradient(135deg, #0f6b67 0%, #0f876e 100%);
+  background: linear-gradient(135deg, #0b5f59 0%, #11806f 100%);
   border-radius: var(--radius-lg);
 }
 
@@ -83,9 +84,9 @@ button:disabled {
 }
 
 .hero-copy {
-  display: grid;
-  gap: 2px 10px;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
 }
 
 .eyebrow {
@@ -97,7 +98,7 @@ button:disabled {
 .hero h1 {
   margin: 0;
   line-height: 1;
-  font-size: 1.5rem;
+  font-size: 1.45rem;
 }
 
 .subtitle {
@@ -110,24 +111,25 @@ button:disabled {
 .app-tabs {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
   padding: 5px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: #fff;
-  box-shadow: var(--shadow);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
 }
 
 .tab-button {
   appearance: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  min-height: 38px;
+  min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   color: var(--text);
   transition: none;
+  font-weight: 600;
 }
 
 .tab-button:active {
@@ -335,6 +337,13 @@ textarea {
   background: #fff;
 }
 
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid rgba(15, 118, 110, 0.16);
+  border-color: rgba(15, 118, 110, 0.52);
+}
+
 .toggle-group {
   margin: 0;
   padding: 0;
@@ -369,8 +378,9 @@ textarea {
 
 .decision-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 12px;
+  align-items: start;
 }
 
 .plan-card,
@@ -381,31 +391,39 @@ textarea {
 
 .plan-card {
   grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
 }
 
 .plan-heading {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
 }
 
 .result-label {
   margin: 0;
-  padding: 7px 12px;
+  padding: 0 12px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   color: #fff;
   background: var(--brand);
+  font-weight: 700;
 }
 
 .budget-status {
   margin: 0;
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   color: var(--muted);
   background: #f1f5f9;
   min-width: 160px;
   text-align: right;
+  font-weight: 600;
 }
 
 .budget-status.ok {
@@ -422,17 +440,19 @@ textarea {
   position: relative;
   width: 400px;
   max-width: 100%;
+  z-index: 5;
 }
 
 .plan-picker label {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 68px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
-  min-height: 40px;
-  padding: 3px 10px;
+  min-height: 38px;
+  padding: 3px 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
+  background: #fff;
 }
 
 .plan-picker input,
@@ -447,7 +467,7 @@ textarea {
 
 .plan-search-results {
   position: absolute;
-  z-index: 3;
+  z-index: 20;
   top: calc(100% + 6px);
   left: 0;
   right: 0;
@@ -455,10 +475,11 @@ textarea {
   overflow: auto;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 6px;
   display: grid;
   gap: 6px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
 }
 
 .plan-search-results:empty {
@@ -499,7 +520,9 @@ textarea {
   display: grid;
   gap: 8px;
   min-height: 0;
+  max-height: calc(100vh - 410px);
   overflow: auto;
+  padding-right: 2px;
 }
 
 .plan-item,
@@ -512,9 +535,49 @@ textarea {
 
 .plan-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px 155px;
+  grid-template-columns: minmax(0, 1fr) 86px 142px;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-height: 92px;
+  background: #fff;
+  border-color: #dce3ec;
+}
+
+.plan-item.is-fixed {
+  border-color: #b9ded5;
+  background: #f0faf6;
+}
+
+.plan-main {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.dish-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dish-title strong {
+  font-size: 1.05rem;
+}
+
+.plan-meta {
+  display: block;
+  margin-top: 0 !important;
+  color: var(--muted);
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-category-row {
+  display: flex;
+  align-items: center;
 }
 
 .plan-item strong,
@@ -563,14 +626,26 @@ textarea {
 
 .plan-price {
   justify-self: end;
-  min-width: 66px;
+  min-width: 72px;
   text-align: right;
+  color: #0f172a;
+  font-size: 1.08rem;
+}
+
+.plan-price span {
+  display: inline;
+  margin-left: 2px;
+  margin-top: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 500;
 }
 
 .plan-actions {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: flex-end;
-  gap: 8px;
+  gap: 7px;
   align-items: center;
 }
 
@@ -585,12 +660,14 @@ textarea {
   background: #fff;
   min-height: 38px;
   padding: 0 12px;
+  font-weight: 600;
 }
 
 .primary-action {
   color: #fff;
   border-color: var(--brand);
   background: var(--brand);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.15);
 }
 
 .secondary-action,
@@ -601,18 +678,33 @@ textarea {
   color: var(--text);
 }
 
+.secondary-action:hover,
+.text-button:hover,
+.mini-action:hover,
+.icon-button:hover,
+.clear-rating:hover {
+  border-color: #bcc7d6;
+  background: #f8fafc;
+}
+
+.primary-action:hover {
+  background: var(--brand-2);
+  border-color: var(--brand-2);
+}
+
 .icon-button,
 .mini-action {
   min-height: 34px;
 }
 
 .icon-button.pin-action {
-  background: #e6ffef;
+  background: #e7fff2;
+  border-color: #bdebd0;
   color: var(--success);
 }
 
 .icon-button.remove-action {
-  background: #f8f9fb;
+  background: #f8fafc;
 }
 
 .actions {
@@ -620,10 +712,15 @@ textarea {
   gap: 9px;
 }
 
+.summary-card {
+  position: sticky;
+  top: 12px;
+}
+
 .price-summary {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   display: grid;
-  gap: 8px;
+  gap: 0;
 }
 
 .price-summary div {
@@ -631,7 +728,7 @@ textarea {
   justify-content: space-between;
   align-items: baseline;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 8px;
+  padding: 11px 0;
 }
 
 .price-summary dt {
@@ -644,7 +741,8 @@ textarea {
 
 .price-summary .total-row dd {
   color: var(--brand);
-  font-size: 1.8rem;
+  font-size: 1.9rem;
+  font-weight: 800;
 }
 
 .menu-board {
@@ -1057,13 +1155,41 @@ textarea {
   color: var(--muted);
 }
 
+.empty-plan {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #fbfdfd 0%, #f4f8f7 100%);
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-plan strong {
+  color: var(--text);
+  font-size: 1.15rem;
+}
+
+.empty-plan span {
+  max-width: 420px;
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.inline-generate {
+  margin-top: 4px;
+}
+
 /* keep simple behavior when fixed dish is already in list */
 .plan-item.is-fixed,
 .dish-chip.is-fixed {
   background: #f2f9f6;
 }
 
-@media (max-width: 1500px) {
+@media (max-width: 1280px) {
   .number-grid {
     grid-template-columns: repeat(4, minmax(130px, 1fr));
   }

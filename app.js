@@ -1734,18 +1734,18 @@ function renderPlan() {
         const fixed = fixedDishIds.has(dish.id);
         return `
         <div class="plan-item ${fixed ? "is-fixed" : "is-random"}">
-          <div>
+          <div class="plan-main">
             <div class="dish-title">
               <strong>${dish.name}</strong>
               <em class="source-pill ${fixed ? "fixed" : "random"}">${fixed ? "固定" : "随机"}</em>
             </div>
-            <span>${getDishLabel(dish)}</span>
-            ${getDishCategorySelect(dish, "inline-category-select", "data-plan-category-id")}
+            <span class="plan-meta">${getDishLabel(dish)}</span>
+            <div class="plan-category-row">${getDishCategorySelect(dish, "inline-category-select", "data-plan-category-id")}</div>
           </div>
-          <b class="plan-price">${dish.price} 元</b>
+          <b class="plan-price">${dish.price}<span>元</span></b>
           <div class="plan-actions">
             <button class="icon-button pin-action" type="button" data-toggle-fixed-id="${dish.id}" aria-label="${fixed ? "取消固定" : "固定"}${dish.name}">
-              ${fixed ? "取消固定" : "固定这道"}
+              ${fixed ? "取消固定" : "固定"}
             </button>
             <button class="icon-button remove-action" type="button" data-remove-id="${dish.id}" aria-label="删除${dish.name}">删除</button>
           </div>
@@ -2316,6 +2316,8 @@ function bindEvents() {
     const button = event.target.closest("[data-plan-add-id]");
     if (!button) return;
     addDishToPlan(Number(button.dataset.planAddId));
+    elements.planSearch.value = "";
+    renderPlanSearchResults();
   });
 
   elements.dishGrid.addEventListener("click", (event) => {
