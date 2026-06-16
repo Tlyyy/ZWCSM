@@ -789,6 +789,18 @@ textarea:focus {
   border-color: var(--brand-2);
 }
 
+.danger-action {
+  color: var(--brand);
+  border-color: #efc8c2;
+  background: #fff8f7;
+}
+
+.danger-action:hover {
+  color: #fff;
+  border-color: var(--brand);
+  background: var(--brand);
+}
+
 .icon-button,
 .mini-action {
   min-height: 34px;

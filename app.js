@@ -175,6 +175,7 @@ const elements = {
   calendarPrev: document.querySelector("#calendar-prev"),
   calendarToday: document.querySelector("#calendar-today"),
   calendarNext: document.querySelector("#calendar-next"),
+  clearMonthHistory: document.querySelector("#clear-month-history"),
   ratingSearch: document.querySelector("#rating-search"),
   ratingCategory: document.querySelector("#rating-category"),
   ratingStatus: document.querySelector("#rating-status"),
@@ -1030,6 +1031,28 @@ function saveCurrentWeekPlans(plans) {
   const allPlans = getAllWeeklyPlans();
   allPlans[getWeekKey()] = plans;
   saveAllWeeklyPlans(allPlans);
+}
+
+function clearPlansForMonth(monthKey) {
+  const allPlans = getAllWeeklyPlans();
+  let removedCount = 0;
+  const nextPlansByWeek = Object.fromEntries(
+    Object.entries(allPlans).map(([weekKey, plans]) => {
+      const keptPlans = (plans || []).filter((plan) => {
+        const shouldRemove = getMonthKey(plan.savedAt) === monthKey;
+        if (shouldRemove) removedCount += 1;
+        return !shouldRemove;
+      });
+      return [weekKey, keptPlans];
+    }),
+  );
+
+  Object.keys(nextPlansByWeek).forEach((weekKey) => {
+    if (nextPlansByWeek[weekKey].length === 0) delete nextPlansByWeek[weekKey];
+  });
+
+  if (removedCount > 0) saveAllWeeklyPlans(nextPlansByWeek);
+  return removedCount;
 }
 
 function getDateKey(date) {
@@ -2766,6 +2789,27 @@ function bindEvents() {
   elements.calendarNext.addEventListener("click", () => {
     calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1);
     renderCalendar();
+  });
+
+  elements.clearMonthHistory?.addEventListener("click", () => {
+    const monthStart = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+    const monthLabel = monthStart.toLocaleDateString("zh-CN", { year: "numeric", month: "long" });
+    const monthKey = getMonthKey(monthStart);
+    const count = getAllSavedPlans().filter((plan) => getMonthKey(plan.savedAt) === monthKey).length;
+
+    if (count === 0) {
+      alert(`${monthLabel} 没有历史记录可清空。`);
+      return;
+    }
+
+    if (!confirm(`确定清空 ${monthLabel} 的 ${count} 套历史菜单吗？\n\n只会删除保存记录，不会删除评分、菜品和类别。`)) {
+      return;
+    }
+
+    clearPlansForMonth(monthKey);
+    renderWeeklyPlans();
+    renderCalendar();
+    renderCandidates();
   });
 
   [elements.peopleCount, elements.totalBudget, elements.tablewareFee, elements.discount, elements.dishCount].forEach((element) => {
