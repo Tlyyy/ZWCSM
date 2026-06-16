@@ -110,8 +110,7 @@ const categoryDataVersion = 2;
 const cloudSyncConfigKey = "lunch-picker-cloud-sync-config-v1";
 const supabaseRoomKey = "lunch-picker-supabase-room-v1";
 const supabaseAutoSyncKey = "lunch-picker-supabase-auto-sync-v1";
-const supabaseRestUrl = "https://imngjwetsqqjjibfizfb.supabase.co/rest/v1";
-const supabasePublishableKey = "sb_publishable_b6Em1XU-eeO_nLwv9SlPZQ_n0Bcp1Ek";
+const syncApiUrl = "/api/sync";
 const DEFAULT_CATEGORY = "未分类";
 const exclusionTagGroups = [
   { name: "忌口", tags: ["内脏", "鱼类", "豆制品", "蛋类"] },
@@ -366,24 +365,17 @@ function setSupabaseAutoSyncEnabled(enabled) {
   localStorage.setItem(supabaseAutoSyncKey, String(enabled));
 }
 
-function getSupabaseHeaders(extra = {}) {
-  return {
-    apikey: supabasePublishableKey,
-    Authorization: `Bearer ${supabasePublishableKey}`,
-    "Content-Type": "application/json",
-    ...extra,
-  };
-}
-
-async function callSupabase(path, options = {}) {
-  const response = await fetch(`${supabaseRestUrl}${path}`, {
+async function callSyncApi(options = {}) {
+  const response = await fetch(syncApiUrl, {
     ...options,
-    headers: getSupabaseHeaders(options.headers || {}),
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
   });
-  const text = await response.text();
-  const result = text ? JSON.parse(text) : null;
+  const result = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = result?.message || result?.hint || response.statusText;
+    const message = result?.error || result?.message || response.statusText;
     throw new Error(message);
   }
   return result;
@@ -392,18 +384,21 @@ async function callSupabase(path, options = {}) {
 async function pullSupabaseState({ silent = false } = {}) {
   saveSupabaseRoom();
   const roomId = getSupabaseRoom();
-  const rows = await callSupabase(
-    `/lunch_states?room_id=eq.${encodeURIComponent(roomId)}&select=data,updated_at&limit=1`,
-  );
+  const result = await callSyncApi({
+    method: "GET",
+    headers: {
+      "X-Sync-Room": roomId,
+    },
+  });
 
-  if (!rows || rows.length === 0) {
+  if (!result?.found) {
     if (!silent) setSyncStatus(`云端还没有房间「${roomId}」的数据，先上传一次。`, "warning");
     return false;
   }
 
   isApplyingRemoteState = true;
   try {
-    applySyncPayload(rows[0].data);
+    applySyncPayload(result.data);
     currentPlan = [];
     fixedDishIds = new Set();
     refreshAllViews();
@@ -412,7 +407,7 @@ async function pullSupabaseState({ silent = false } = {}) {
   }
 
   if (!silent) {
-    const updatedAt = rows[0].updated_at ? new Date(rows[0].updated_at).toLocaleString("zh-CN") : "未知时间";
+    const updatedAt = result.updatedAt ? new Date(result.updatedAt).toLocaleString("zh-CN") : "未知时间";
     setSyncStatus(`已拉取房间「${roomId}」的数据（${updatedAt}）。`, "ok");
   }
   return true;
@@ -421,15 +416,11 @@ async function pullSupabaseState({ silent = false } = {}) {
 async function pushSupabaseState({ silent = false } = {}) {
   saveSupabaseRoom();
   const roomId = getSupabaseRoom();
-  await callSupabase("/lunch_states?on_conflict=room_id", {
-    method: "POST",
-    headers: {
-      Prefer: "resolution=merge-duplicates,return=minimal",
-    },
+  await callSyncApi({
+    method: "PUT",
     body: JSON.stringify({
-      room_id: roomId,
+      roomId,
       data: buildSyncPayload(),
-      updated_at: new Date().toISOString(),
     }),
   });
 
@@ -445,7 +436,7 @@ function scheduleSupabaseSync() {
       await pushSupabaseState({ silent: true });
       setSyncStatus(`已自动同步到房间「${getSupabaseRoom()}」。`, "ok");
     } catch (error) {
-      setSyncStatus(`Supabase 自动同步失败：${error.message}`, "danger");
+      setSyncStatus(`云端自动同步失败：${error.message}`, "danger");
       console.error("Supabase auto sync failed:", error);
     }
   }, 1000);
@@ -459,7 +450,7 @@ async function syncSupabaseNow(action) {
       await pushSupabaseState();
     }
   } catch (error) {
-    setSyncStatus(`Supabase 同步失败：${error.message}`, "danger");
+    setSyncStatus(`云端同步失败：${error.message}`, "danger");
     console.error("Supabase sync failed:", error);
   }
 }
@@ -477,7 +468,7 @@ function startSupabaseAutoSync() {
       setSyncStatus(`自动拉取失败：${error.message}`, "danger");
     });
   }, 30000);
-  setSyncStatus(`已开启 Supabase 自动同步：${getSupabaseRoom()}`, "ok");
+  setSyncStatus(`已开启云端自动同步：${getSupabaseRoom()}`, "ok");
 }
 
 function stopSupabaseAutoSync() {
@@ -495,7 +486,7 @@ function toggleSupabaseAutoSync() {
     startSupabaseAutoSync();
   } else {
     stopSupabaseAutoSync();
-    setSyncStatus("已关闭 Supabase 自动同步。", "warning");
+    setSyncStatus("已关闭云端自动同步。", "warning");
   }
 }
 
@@ -3102,7 +3093,7 @@ if (elements.supabaseAutoToggle) {
 }
 if (elements.backfillDatetime) elements.backfillDatetime.value = formatDateTimeLocal();
 if (elements.backfillPeople) elements.backfillPeople.value = elements.peopleCount.value || "4";
-setSyncStatus("当前数据默认保存在当前浏览器，可用 Supabase 房间号跨设备同步。");
+setSyncStatus("当前数据默认保存在当前浏览器，可用房间号跨设备同步。");
 normalizeInputs();
 renderPlan();
 renderPlanSearchResults();

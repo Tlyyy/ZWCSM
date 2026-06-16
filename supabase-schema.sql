@@ -10,18 +10,22 @@ drop policy if exists "lunch_states_public_select" on public.lunch_states;
 drop policy if exists "lunch_states_public_insert" on public.lunch_states;
 drop policy if exists "lunch_states_public_update" on public.lunch_states;
 
-create policy "lunch_states_public_select"
-on public.lunch_states
-for select
-using (true);
+-- Next.js API should use SUPABASE_SERVICE_ROLE_KEY on Vercel.
+-- The service role bypasses RLS, so public browser access does not need table policies.
+-- If you temporarily use SUPABASE_ANON_KEY instead, uncomment the policies below.
 
-create policy "lunch_states_public_insert"
-on public.lunch_states
-for insert
-with check (true);
+-- create policy "lunch_states_public_select"
+-- on public.lunch_states
+-- for select
+-- using (true);
 
-create policy "lunch_states_public_update"
-on public.lunch_states
-for update
-using (true)
-with check (true);
+-- create policy "lunch_states_public_insert"
+-- on public.lunch_states
+-- for insert
+-- with check (true);
+
+-- create policy "lunch_states_public_update"
+-- on public.lunch_states
+-- for update
+-- using (true)
+-- with check (true);

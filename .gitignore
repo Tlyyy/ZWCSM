@@ -1,0 +1,7 @@
+node_modules/
+.next/
+out/
+public/index.html
+public/styles.css
+public/app.js
+.env*.local
