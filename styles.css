@@ -239,7 +239,7 @@ button:disabled {
 
 .sync-card {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .sync-tools {
@@ -257,13 +257,13 @@ button:disabled {
 
 .sync-code-panel {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(320px, 1fr) 180px;
   gap: 12px;
-  align-items: stretch;
-  padding: 12px;
+  align-items: end;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: #f8fafc;
+  background: #fff;
 }
 
 .sync-code-panel.compact {
@@ -273,7 +273,7 @@ button:disabled {
 .sync-code-actions {
   display: grid;
   gap: 8px;
-  align-content: start;
+  align-content: end;
   min-width: 180px;
 }
 
@@ -300,14 +300,22 @@ button:disabled {
 .cloud-sync-advanced {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
-  background: #fff;
+  padding: 9px 12px;
+  background: #fbfcfd;
 }
 
 .cloud-sync-advanced summary {
   cursor: pointer;
-  color: var(--text);
+  color: var(--muted);
   font-weight: 700;
+}
+
+.danger-details {
+  margin-top: 6px;
+}
+
+.danger-details .sync-tools {
+  margin-top: 10px;
 }
 
 .cloud-sync-advanced .sync-path {
@@ -315,10 +323,11 @@ button:disabled {
 }
 
 .sync-status {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.5;
+  text-align: right;
 }
 
 .sync-status.ok {
@@ -338,7 +347,17 @@ button:disabled {
   gap: 8px;
   color: var(--muted);
   font-size: 0.9rem;
-  margin-top: 4px;
+  margin-top: 0;
+}
+
+.sync-note p,
+.sync-tip {
+  margin: 0;
+}
+
+.sync-tip {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .number-grid span,
