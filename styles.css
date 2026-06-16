@@ -1257,6 +1257,88 @@ textarea:focus {
   list-style: none;
 }
 
+.weekly-backfill {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #e4eaf2;
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.weekly-backfill-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.weekly-backfill-head span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.weekly-backfill-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 90px 210px 110px 74px;
+  gap: 8px;
+  align-items: end;
+}
+
+.weekly-backfill-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.weekly-backfill-form label span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.backfill-search {
+  position: relative;
+}
+
+.backfill-search-results {
+  top: calc(100% + 6px);
+}
+
+.backfill-list {
+  display: grid;
+  gap: 6px;
+}
+
+.backfill-dish {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 64px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.backfill-dish strong,
+.backfill-dish span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backfill-dish span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.backfill-dish b {
+  text-align: right;
+}
+
 .weekly-list li {
   border: 1px solid var(--line);
   border-radius: 8px;

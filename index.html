@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>中午吃什么</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=20260616-history-clear" />
+    <link rel="stylesheet" href="./styles.css?v=20260616-backfill" />
   </head>
   <body>
     <main class="app-shell">
@@ -162,6 +162,32 @@
               <p class="section-subtitle">保存后的菜单会在这里记录，也会参与本周已吃排除。</p>
             </div>
             <button class="text-button" id="clear-weekly" type="button">清空本周</button>
+          </div>
+          <div class="weekly-backfill" aria-label="补录本周菜单">
+            <div class="weekly-backfill-head">
+              <strong>补录菜单</strong>
+              <span id="backfill-total">还没选择菜品</span>
+            </div>
+            <div class="weekly-backfill-form">
+              <label class="backfill-search">
+                <span>搜索菜品</span>
+                <input id="backfill-search" type="search" placeholder="输入菜名，点加入补录" autocomplete="off" />
+                <div class="plan-search-results backfill-search-results" id="backfill-search-results"></div>
+              </label>
+              <label>
+                <span>人数</span>
+                <input id="backfill-people" type="number" min="1" max="12" value="4" />
+              </label>
+              <label>
+                <span>时间</span>
+                <input id="backfill-datetime" type="datetime-local" />
+              </label>
+              <button class="primary-action" id="save-backfill" type="button">保存补录</button>
+              <button class="secondary-action" id="clear-backfill" type="button">清空</button>
+            </div>
+            <div class="backfill-list" id="backfill-list">
+              <p class="empty-state">先搜索菜品加入补录清单。</p>
+            </div>
           </div>
           <ol class="weekly-list" id="weekly-list"></ol>
         </article>
@@ -346,6 +372,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260616-history-clear"></script>
+    <script src="./app.js?v=20260616-backfill"></script>
   </body>
 </html>

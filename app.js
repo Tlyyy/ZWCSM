@@ -125,6 +125,7 @@ let dishes = [];
 let categoryCatalog = [];
 let currentPlan = [];
 let fixedDishIds = new Set();
+let backfillDishIds = new Set();
 let calendarDate = new Date();
 let currentReviewVariant = 0;
 
@@ -147,6 +148,14 @@ const elements = {
   saveWeeklyPlan: document.querySelector("#save-weekly-plan"),
   clearPlan: document.querySelector("#clear-plan"),
   clearWeekly: document.querySelector("#clear-weekly"),
+  backfillSearch: document.querySelector("#backfill-search"),
+  backfillSearchResults: document.querySelector("#backfill-search-results"),
+  backfillPeople: document.querySelector("#backfill-people"),
+  backfillDatetime: document.querySelector("#backfill-datetime"),
+  backfillTotal: document.querySelector("#backfill-total"),
+  backfillList: document.querySelector("#backfill-list"),
+  saveBackfill: document.querySelector("#save-backfill"),
+  clearBackfill: document.querySelector("#clear-backfill"),
   planSearch: document.querySelector("#plan-search"),
   planSearchResults: document.querySelector("#plan-search-results"),
   planList: document.querySelector("#plan-list"),
@@ -1033,6 +1042,13 @@ function saveCurrentWeekPlans(plans) {
   saveAllWeeklyPlans(allPlans);
 }
 
+function savePlanToWeek(snapshot) {
+  const allPlans = getAllWeeklyPlans();
+  const weekKey = snapshot.weekKey || getWeekKey(snapshot.savedAt);
+  allPlans[weekKey] = [snapshot, ...(allPlans[weekKey] || [])];
+  saveAllWeeklyPlans(allPlans);
+}
+
 function clearPlansForMonth(monthKey) {
   const allPlans = getAllWeeklyPlans();
   let removedCount = 0;
@@ -1066,6 +1082,16 @@ function getDateKey(date) {
 function getMonthKey(date) {
   const target = new Date(date);
   return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatDateTimeLocal(date = new Date()) {
+  const target = new Date(date);
+  const year = target.getFullYear();
+  const month = String(target.getMonth() + 1).padStart(2, "0");
+  const day = String(target.getDate()).padStart(2, "0");
+  const hour = String(target.getHours()).padStart(2, "0");
+  const minute = String(target.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
 function getPlansByDate() {
@@ -2311,6 +2337,152 @@ function saveCurrentPlanToWeek() {
   renderCandidates();
 }
 
+function getBackfillDishes() {
+  return dishes.filter((dish) => backfillDishIds.has(dish.id));
+}
+
+function renderBackfillSearchResults() {
+  if (!elements.backfillSearch || !elements.backfillSearchResults) return;
+  const term = elements.backfillSearch.value.trim().toLowerCase();
+  if (!term) {
+    elements.backfillSearchResults.innerHTML = "";
+    return;
+  }
+
+  const matches = dishes
+    .filter((dish) => {
+      const haystack = `${dish.name} ${getDishCategories(dish).join(" ")} ${getDishTags(dish).join(" ")}`.toLowerCase();
+      return haystack.includes(term);
+    })
+    .slice(0, 8);
+
+  if (matches.length === 0) {
+    elements.backfillSearchResults.innerHTML = '<p class="empty-state">没搜到这道菜</p>';
+    return;
+  }
+
+  elements.backfillSearchResults.innerHTML = matches
+    .map((dish) => {
+      const selected = backfillDishIds.has(dish.id);
+      return `
+        <div class="plan-search-item">
+          <div>
+            <strong>${dish.name}</strong>
+            <span>${getDishLabel(dish)}</span>
+          </div>
+          <b class="plan-search-price">${dish.price} 元</b>
+          <button class="mini-action" type="button" data-backfill-add-id="${dish.id}" ${selected ? "disabled" : ""}>
+            ${selected ? "已加入" : "加入"}
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderBackfillDraft() {
+  if (!elements.backfillList || !elements.backfillTotal) return;
+  const draftDishes = getBackfillDishes();
+  const settings = {
+    ...getSettings(),
+    peopleCount: clampNumber(elements.backfillPeople?.value, 1, 12, 4),
+  };
+  const summary = calculatePlanSummary(draftDishes, settings);
+
+  elements.backfillTotal.textContent =
+    draftDishes.length > 0
+      ? `${draftDishes.length} 道 · ${money(summary.finalTotal)}`
+      : "还没选择菜品";
+
+  if (draftDishes.length === 0) {
+    elements.backfillList.innerHTML = '<p class="empty-state">先搜索菜品加入补录清单。</p>';
+    return;
+  }
+
+  elements.backfillList.innerHTML = draftDishes
+    .map(
+      (dish) => `
+        <div class="backfill-dish">
+          <div>
+            <strong>${dish.name}</strong>
+            <span>${getDishLabel(dish)}</span>
+          </div>
+          <b>${dish.price} 元</b>
+          <button class="icon-button remove-action" type="button" data-backfill-remove-id="${dish.id}">删除</button>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function addDishToBackfill(id) {
+  if (!dishes.some((dish) => dish.id === id)) return;
+  backfillDishIds.add(id);
+  renderBackfillDraft();
+  renderBackfillSearchResults();
+}
+
+function removeDishFromBackfill(id) {
+  backfillDishIds.delete(id);
+  renderBackfillDraft();
+  renderBackfillSearchResults();
+}
+
+function clearBackfillDraft() {
+  backfillDishIds = new Set();
+  if (elements.backfillSearch) elements.backfillSearch.value = "";
+  renderBackfillDraft();
+  renderBackfillSearchResults();
+}
+
+function saveBackfillPlan() {
+  const draftDishes = getBackfillDishes();
+  if (draftDishes.length === 0) {
+    alert("先加入要补录的菜品。");
+    return;
+  }
+
+  const savedAt = elements.backfillDatetime?.value
+    ? new Date(elements.backfillDatetime.value)
+    : new Date();
+  if (Number.isNaN(savedAt.getTime())) {
+    alert("补录时间不正确。");
+    return;
+  }
+  if (getWeekKey(savedAt) !== getWeekKey()) {
+    alert("这里只能补录本周菜单。要补历史月份，可以先切到对应功能后再处理。");
+    return;
+  }
+
+  const settings = {
+    ...getSettings(),
+    peopleCount: clampNumber(elements.backfillPeople?.value, 1, 12, 4),
+  };
+  const summary = calculatePlanSummary(draftDishes, settings);
+  const snapshot = {
+    id: Date.now(),
+    weekKey: getWeekKey(savedAt),
+    savedAt: savedAt.toISOString(),
+    source: "backfill",
+    dishes: draftDishes.map(({ id, name, price, category, categories, type }) => ({
+      id,
+      name,
+      price,
+      category,
+      categories,
+      type,
+    })),
+    total: summary.finalTotal,
+    peopleCount: settings.peopleCount,
+  };
+
+  savePlanToWeek(snapshot);
+  clearBackfillDraft();
+  renderWeeklyPlans();
+  renderCalendar();
+  renderCandidates();
+}
+
 function renderWeeklyPlans() {
   const plans = getCurrentWeekPlans();
 
@@ -2775,6 +2947,24 @@ function bindEvents() {
     renderCalendar();
     renderCandidates();
   });
+  elements.backfillSearch?.addEventListener("input", renderBackfillSearchResults);
+  elements.backfillPeople?.addEventListener("input", renderBackfillDraft);
+  elements.saveBackfill?.addEventListener("click", saveBackfillPlan);
+  elements.clearBackfill?.addEventListener("click", clearBackfillDraft);
+
+  elements.backfillSearchResults?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-backfill-add-id]");
+    if (!button) return;
+    addDishToBackfill(Number(button.dataset.backfillAddId));
+    if (elements.backfillSearch) elements.backfillSearch.value = "";
+    renderBackfillSearchResults();
+  });
+
+  elements.backfillList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-backfill-remove-id]");
+    if (!button) return;
+    removeDishFromBackfill(Number(button.dataset.backfillRemoveId));
+  });
 
   elements.calendarPrev.addEventListener("click", () => {
     calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
@@ -2910,10 +3100,14 @@ if (elements.supabaseRoom) elements.supabaseRoom.value = localStorage.getItem(su
 if (elements.supabaseAutoToggle) {
   elements.supabaseAutoToggle.textContent = isSupabaseAutoSyncEnabled() ? "关闭自动同步" : "开启自动同步";
 }
+if (elements.backfillDatetime) elements.backfillDatetime.value = formatDateTimeLocal();
+if (elements.backfillPeople) elements.backfillPeople.value = elements.peopleCount.value || "4";
 setSyncStatus("当前数据默认保存在当前浏览器，可用 Supabase 房间号跨设备同步。");
 normalizeInputs();
 renderPlan();
 renderPlanSearchResults();
+renderBackfillDraft();
+renderBackfillSearchResults();
 renderCandidates();
 renderWeeklyPlans();
 renderCalendar();
