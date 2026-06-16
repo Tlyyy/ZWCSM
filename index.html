@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>中午吃什么</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260615-review" />
   </head>
   <body>
     <main class="app-shell">
@@ -20,10 +20,9 @@
 
       <nav class="app-tabs" aria-label="功能页签">
         <button class="tab-button is-active" type="button" data-tab="planner">点菜</button>
-        <button class="tab-button" type="button" data-tab="menu">菜单</button>
-        <button class="tab-button" type="button" data-tab="categories">类别维护</button>
-        <button class="tab-button" type="button" data-tab="ratings">评分</button>
-        <button class="tab-button" type="button" data-tab="calendar">日历</button>
+        <button class="tab-button" type="button" data-tab="weekly">本周菜单</button>
+        <button class="tab-button" type="button" data-tab="calendar">历史</button>
+        <button class="tab-button" type="button" data-tab="base">基础资料</button>
         <button class="tab-button" type="button" data-tab="sync">同步</button>
       </nav>
 
@@ -67,6 +66,16 @@
                 <option value="5">5分</option>
               </select>
             </label>
+            <label>
+              <span>推荐模式</span>
+              <select id="meal-mode">
+                <option value="normal" selected>正常吃</option>
+                <option value="budget">省钱点</option>
+                <option value="light">清淡点</option>
+                <option value="hearty">下饭点</option>
+                <option value="treat">吃好点</option>
+              </select>
+            </label>
           </div>
 
           <fieldset class="toggle-group exclude-group">
@@ -89,6 +98,10 @@
                 </div>
               </div>
               <p id="budget-status" class="budget-status neutral">还没生成方案</p>
+            </div>
+            <div class="explain-card" id="explain-card">
+              <strong>推荐解释</strong>
+              <p id="explain-text">生成菜单后会说明这桌为什么这样配。</p>
             </div>
             <div id="plan-list" class="plan-list">
               <p class="empty-state">点一下“自动配一桌”，今天中午就有答案。</p>
@@ -124,8 +137,8 @@
             </dl>
             <div class="actions">
               <button class="primary-action" id="generate-button" type="button">自动配一桌</button>
-              <button class="secondary-action" id="save-weekly-plan" type="button">保存本周菜单</button>
-              <button class="secondary-action" id="clear-plan" type="button">清空方案</button>
+              <button class="secondary-action" id="save-weekly-plan" type="button">保存本周</button>
+              <button class="secondary-action" id="clear-plan" type="button">清空</button>
             </div>
             <div class="review-card" id="review-card">
               <div class="review-card-head">
@@ -141,11 +154,24 @@
         </section>
       </section>
 
-      <section class="calendar-board tab-panel" data-tab-panel="calendar" aria-label="吃饭日历">
+      <section class="weekly-board tab-panel" data-tab-panel="weekly" aria-label="本周菜单">
+        <article class="recent-card">
+          <div class="section-title">
+            <div>
+              <h2>本周菜单</h2>
+              <p class="section-subtitle">保存后的菜单会在这里记录，也会参与本周已吃排除。</p>
+            </div>
+            <button class="text-button" id="clear-weekly" type="button">清空本周</button>
+          </div>
+          <ol class="weekly-list" id="weekly-list"></ol>
+        </article>
+      </section>
+
+      <section class="calendar-board tab-panel" data-tab-panel="calendar" aria-label="吃饭记录">
         <div class="section-title calendar-title">
           <div>
-            <h2>吃饭日历</h2>
-            <p id="calendar-summary" class="calendar-summary">查看每天保存过的菜单</p>
+            <h2>历史记录</h2>
+            <p id="calendar-summary" class="calendar-summary">按月份查看保存过的菜单</p>
           </div>
           <div class="calendar-actions">
             <button class="text-button" id="calendar-prev" type="button">上个月</button>
@@ -154,20 +180,56 @@
             <button class="text-button" id="calendar-next" type="button">下个月</button>
           </div>
         </div>
-        <div class="calendar-weekdays" aria-hidden="true">
-          <span>周一</span>
-          <span>周二</span>
-          <span>周三</span>
-          <span>周四</span>
-          <span>周五</span>
-          <span>周六</span>
-          <span>周日</span>
+        <div class="calendar-insights" id="calendar-insights" aria-label="本月吃饭概览"></div>
+        <div class="calendar-layout">
+          <aside class="calendar-record-card" aria-label="本月吃饭记录">
+            <div class="calendar-record-head">
+              <div>
+                <h3>本月菜单</h3>
+                <p>保存过的菜单按日期排列。</p>
+              </div>
+              <span id="calendar-record-count">0 天</span>
+            </div>
+            <div class="calendar-record-list" id="calendar-record-list"></div>
+          </aside>
+          <div class="calendar-month-card" aria-label="月份标记">
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span>周一</span>
+              <span>周二</span>
+              <span>周三</span>
+              <span>周四</span>
+              <span>周五</span>
+              <span>周六</span>
+              <span>周日</span>
+            </div>
+            <div class="calendar-grid" id="calendar-grid"></div>
+          </div>
         </div>
-        <div class="calendar-grid" id="calendar-grid"></div>
       </section>
 
-      <section class="category-board tab-panel" data-tab-panel="categories" aria-label="类别维护">
-        <article class="category-card">
+      <section class="base-board tab-panel" data-tab-panel="base" aria-label="基础资料">
+        <nav class="base-tabs" aria-label="基础资料页签">
+          <button class="base-tab-button is-active" type="button" data-base-tab="base-menu">菜单维护</button>
+          <button class="base-tab-button" type="button" data-base-tab="base-categories">类别维护</button>
+          <button class="base-tab-button" type="button" data-base-tab="base-ratings">评分维护</button>
+        </nav>
+
+        <article class="menu-card base-panel is-active" data-base-panel="base-menu" aria-label="菜单维护">
+          <div class="section-title">
+            <div>
+              <h2>菜单维护</h2>
+              <p class="section-subtitle">维护菜品分类，点菜页只读取这里的分类结果。</p>
+            </div>
+            <span id="candidate-count">0 道菜</span>
+          </div>
+          <label class="menu-search">
+            <span>搜索菜单</span>
+            <input id="menu-search" type="search" placeholder="输入菜名或分类" autocomplete="off" />
+          </label>
+          <div class="dish-grid" id="dish-grid"></div>
+        </article>
+
+        <article class="category-card base-panel" data-base-panel="base-categories" aria-label="类别维护">
           <div class="section-title">
             <h2>类别管理</h2>
             <span id="category-count">0 个分类</span>
@@ -181,57 +243,38 @@
           </form>
           <div id="category-list" class="category-list"></div>
         </article>
-      </section>
 
-      <section class="menu-board tab-panel" data-tab-panel="menu" aria-label="菜单和记录">
-        <article class="recent-card">
+        <article class="rating-board base-panel" data-base-panel="base-ratings" aria-label="评分维护">
           <div class="section-title">
-            <h2>本周菜单</h2>
-            <button class="text-button" id="clear-weekly" type="button">清空本周</button>
+            <div>
+              <h2>评分维护</h2>
+              <p class="section-subtitle">菜品评分是全局唯一的，会影响点菜时的最低评分过滤。</p>
+            </div>
+            <span id="rating-count">0 道菜</span>
           </div>
-          <ol class="weekly-list" id="weekly-list"></ol>
-        </article>
-
-        <article class="menu-card">
-          <div class="section-title">
-            <h2>当前候选</h2>
-            <span id="candidate-count">0 道菜</span>
+          <div class="rating-tools">
+            <label>
+              <span>搜索菜品</span>
+              <input id="rating-search" type="search" placeholder="输入菜名或分类" autocomplete="off" />
+            </label>
+            <label>
+              <span>维护分类</span>
+              <select id="rating-category">
+                <option value="all">全部分类</option>
+              </select>
+            </label>
+            <label>
+              <span>评分状态</span>
+              <select id="rating-status">
+                <option value="all">全部状态</option>
+                <option value="rated">已评分</option>
+                <option value="unrated">未评分</option>
+                <option value="low">低分</option>
+              </select>
+            </label>
           </div>
-          <label class="menu-search">
-            <span>搜索菜单</span>
-            <input id="menu-search" type="search" placeholder="输入菜名或分类" autocomplete="off" />
-          </label>
-          <div class="dish-grid" id="dish-grid"></div>
+          <div class="rating-list" id="rating-list"></div>
         </article>
-      </section>
-
-      <section class="rating-board tab-panel" data-tab-panel="ratings" aria-label="评分维护">
-        <div class="section-title">
-          <h2>评分维护</h2>
-          <span id="rating-count">0 道菜</span>
-        </div>
-        <div class="rating-tools">
-          <label>
-            <span>搜索菜品</span>
-            <input id="rating-search" type="search" placeholder="输入菜名或分类" autocomplete="off" />
-          </label>
-          <label>
-            <span>维护分类</span>
-            <select id="rating-category">
-              <option value="all">全部分类</option>
-            </select>
-          </label>
-          <label>
-            <span>评分状态</span>
-            <select id="rating-status">
-              <option value="all">全部状态</option>
-              <option value="rated">已评分</option>
-              <option value="unrated">未评分</option>
-              <option value="low">低分</option>
-            </select>
-          </label>
-        </div>
-        <div class="rating-list" id="rating-list"></div>
       </section>
 
       <section class="sync-board tab-panel" data-tab-panel="sync" aria-label="数据同步">
@@ -302,6 +345,6 @@
       </section>
     </main>
 
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260615-review"></script>
   </body>
 </html>

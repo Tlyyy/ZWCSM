@@ -104,6 +104,7 @@ const baseDishes = [
 const weeklyPlansKey = "lunch-picker-weekly-plans-v1";
 const dishRatingsKey = "lunch-picker-dish-ratings-v1";
 const activeTabKey = "lunch-picker-active-tab-v1";
+const activeBaseTabKey = "lunch-picker-active-base-tab-v1";
 const categoryDataKey = "lunch-picker-category-data-v1";
 const categoryDataVersion = 2;
 const cloudSyncConfigKey = "lunch-picker-cloud-sync-config-v1";
@@ -112,7 +113,13 @@ const supabaseAutoSyncKey = "lunch-picker-supabase-auto-sync-v1";
 const supabaseRestUrl = "https://imngjwetsqqjjibfizfb.supabase.co/rest/v1";
 const supabasePublishableKey = "sb_publishable_b6Em1XU-eeO_nLwv9SlPZQ_n0Bcp1Ek";
 const DEFAULT_CATEGORY = "未分类";
-const exclusionTags = ["内脏", "鱼类", "豆制品", "汤类", "辣口", "干锅", "大菜", "高价菜", "重口菜"];
+const exclusionTagGroups = [
+  { name: "忌口", tags: ["内脏", "鱼类", "豆制品", "蛋类"] },
+  { name: "口味", tags: ["辣口", "重口菜", "腌腊类", "油炸干煸"] },
+  { name: "菜型", tags: ["汤类", "干锅", "大菜", "骨头类"] },
+  { name: "预算", tags: ["高价菜"] },
+];
+const exclusionTags = exclusionTagGroups.flatMap((group) => group.tags);
 
 let dishes = [];
 let categoryCatalog = [];
@@ -124,6 +131,8 @@ let currentReviewVariant = 0;
 const elements = {
   tabButtons: document.querySelectorAll("[data-tab]"),
   tabPanels: document.querySelectorAll("[data-tab-panel]"),
+  baseTabButtons: document.querySelectorAll("[data-base-tab]"),
+  basePanels: document.querySelectorAll("[data-base-panel]"),
   peopleCount: document.querySelector("#people-count"),
   totalBudget: document.querySelector("#total-budget"),
   tablewareFee: document.querySelector("#tableware-fee"),
@@ -131,6 +140,7 @@ const elements = {
   dishCount: document.querySelector("#dish-count"),
   category: document.querySelector("#category"),
   minRating: document.querySelector("#min-rating"),
+  mealMode: document.querySelector("#meal-mode"),
   menuSearch: document.querySelector("#menu-search"),
   excludedTags: document.querySelector("#excluded-tags"),
   generateButton: document.querySelector("#generate-button"),
@@ -147,6 +157,8 @@ const elements = {
   discountLabel: document.querySelector("#discount-label"),
   finalTotal: document.querySelector("#final-total"),
   perPerson: document.querySelector("#per-person"),
+  explainCard: document.querySelector("#explain-card"),
+  explainText: document.querySelector("#explain-text"),
   reviewCard: document.querySelector("#review-card"),
   reviewText: document.querySelector("#review-text"),
   copyReview: document.querySelector("#copy-review"),
@@ -157,6 +169,9 @@ const elements = {
   calendarGrid: document.querySelector("#calendar-grid"),
   calendarMonth: document.querySelector("#calendar-month"),
   calendarSummary: document.querySelector("#calendar-summary"),
+  calendarInsights: document.querySelector("#calendar-insights"),
+  calendarRecordList: document.querySelector("#calendar-record-list"),
+  calendarRecordCount: document.querySelector("#calendar-record-count"),
   calendarPrev: document.querySelector("#calendar-prev"),
   calendarToday: document.querySelector("#calendar-today"),
   calendarNext: document.querySelector("#calendar-next"),
@@ -190,8 +205,22 @@ const elements = {
 
 function activateTab(tabName) {
   const fallbackTab = "planner";
+  const legacyTabMap = {
+    menu: "base",
+    categories: "base",
+    ratings: "base",
+  };
+  const legacyBaseTabMap = {
+    menu: "base-menu",
+    categories: "base-categories",
+    ratings: "base-ratings",
+  };
+  if (legacyBaseTabMap[tabName]) {
+    activateBaseTab(legacyBaseTabMap[tabName]);
+  }
   const availableTabs = [...elements.tabButtons].map((button) => button.dataset.tab);
-  const nextTab = availableTabs.includes(tabName) ? tabName : fallbackTab;
+  const normalizedTab = legacyTabMap[tabName] || tabName;
+  const nextTab = availableTabs.includes(normalizedTab) ? normalizedTab : fallbackTab;
   const currentTab = [...elements.tabButtons].find((button) => button.classList.contains("is-active"))?.dataset.tab;
 
   if (currentTab === nextTab) {
@@ -210,6 +239,24 @@ function activateTab(tabName) {
   });
 
   localStorage.setItem(activeTabKey, nextTab);
+}
+
+function activateBaseTab(tabName) {
+  if (!elements.baseTabButtons.length) return;
+  const availableTabs = [...elements.baseTabButtons].map((button) => button.dataset.baseTab);
+  const nextTab = availableTabs.includes(tabName) ? tabName : "base-menu";
+
+  elements.baseTabButtons.forEach((button) => {
+    const isActive = button.dataset.baseTab === nextTab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+
+  elements.basePanels.forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.basePanel === nextTab);
+  });
+
+  localStorage.setItem(activeBaseTabKey, nextTab);
 }
 
 function money(value) {
@@ -233,6 +280,7 @@ function getSettings() {
     dishCountMode: dishCountValue === "" ? "auto" : clampNumber(dishCountValue, 1, 10, 4),
     category: elements.category.value,
     minRating: minRatingValue === "none" ? "none" : clampNumber(minRatingValue, 1, 5, 3),
+    mealMode: elements.mealMode?.value || "normal",
     searchTerm: elements.menuSearch.value.trim().toLowerCase(),
     excludedTags: getExcludedTags(),
   };
@@ -287,6 +335,7 @@ function buildSyncPayload() {
     weeklyPlans: readJsonStorage(weeklyPlansKey, {}),
     dishRatings: readJsonStorage(dishRatingsKey, {}),
     activeTab: localStorage.getItem(activeTabKey) || "planner",
+    activeBaseTab: localStorage.getItem(activeBaseTabKey) || "base-menu",
   };
 }
 
@@ -613,6 +662,7 @@ function applyCloudPayload(payload) {
   if (weeklyPlans) localStorage.setItem(weeklyPlansKey, JSON.stringify(weeklyPlans));
   if (dishRatings) localStorage.setItem(dishRatingsKey, JSON.stringify(dishRatings));
   if (payload.activeTab) localStorage.setItem(activeTabKey, payload.activeTab);
+  if (payload.activeBaseTab) localStorage.setItem(activeBaseTabKey, payload.activeBaseTab);
   if (payload.categoryData?.version) {
     localStorage.setItem(`${categoryDataKey}:version`, String(payload.categoryData.version));
   } else {
@@ -677,6 +727,7 @@ function refreshAllViews() {
   renderCalendar();
   renderRatingMaintenance();
   const activeTab = localStorage.getItem(activeTabKey) || "planner";
+  activateBaseTab(localStorage.getItem(activeBaseTabKey) || "base-menu");
   activateTab(activeTab);
   handleSettingsChange();
 }
@@ -1053,13 +1104,24 @@ function populateCategories() {
   } else {
     elements.ratingCategory.value = "all";
   }
-  elements.excludedTags.innerHTML = exclusionTags
+  elements.excludedTags.innerHTML = exclusionTagGroups
     .map(
-      (tag) => `
-        <label>
-          <input type="checkbox" value="${tag}" />
-          ${tag}
-        </label>
+      (group) => `
+        <div class="exclude-tag-group">
+          <span>${group.name}</span>
+          <div>
+            ${group.tags
+              .map(
+                (tag) => `
+                  <label>
+                    <input type="checkbox" value="${tag}" />
+                    ${tag}
+                  </label>
+                `,
+              )
+              .join("")}
+          </div>
+        </div>
       `,
     )
     .join("");
@@ -1200,9 +1262,13 @@ function getDishTags(dish) {
   if (isOrganDish(dish)) tags.add("内脏");
   if (dish.type === "fish" || /鱼|鱼头|鲫鱼|酸菜鱼|烤鱼|带鱼/.test(name)) tags.add("鱼类");
   if (/豆腐|腐竹|干叶豆腐|黄豆|豆芽|豆干|豆皮/.test(name)) tags.add("豆制品");
+  if (/炒蛋|蛋汤|皮蛋|鸡蛋|鸭蛋/.test(name)) tags.add("蛋类");
   if (isSoup(dish)) tags.add("汤类");
   if (/麻辣|酸辣|辣子|泡椒|剁椒|青椒|尖椒/.test(name)) tags.add("辣口");
   if (hasDishCategory(dish, "干锅类") || /干锅/.test(name)) tags.add("干锅");
+  if (/排骨|仔排|扇子骨|鸭子骨|鸭骨|筒骨|骨/.test(name)) tags.add("骨头类");
+  if (/腊肉|咸菜|酸菜|榨菜|梅菜|外婆菜|泡菜/.test(name)) tags.add("腌腊类");
+  if (/椒盐|小酥肉|干煸|干锅|油炸|炸/.test(name)) tags.add("油炸干煸");
   if (isBigDish(dish)) tags.add("大菜");
   if (dish.price >= 50) tags.add("高价菜");
   if (/鸭血|毛血旺|牛蛙|鸡爪|猪耳|腊肉/.test(name)) tags.add("重口菜");
@@ -1246,10 +1312,15 @@ function getFilteredDishes(options = {}) {
 
 function getTargetDishCount(settings) {
   if (settings.dishCountMode !== "auto") return settings.dishCountMode;
-  if (settings.peopleCount <= 2) return 3;
-  if (settings.peopleCount <= 4) return settings.totalBudget >= 130 ? 5 : 4;
-  if (settings.peopleCount <= 6) return settings.totalBudget >= 170 ? 7 : 6;
-  return 8;
+  let count = 4;
+  if (settings.peopleCount <= 2) count = 3;
+  else if (settings.peopleCount <= 4) count = settings.totalBudget >= 130 ? 5 : 4;
+  else if (settings.peopleCount <= 6) count = settings.totalBudget >= 170 ? 7 : 6;
+  else count = 8;
+
+  if (settings.mealMode === "budget") count = Math.max(3, count - 1);
+  if (settings.mealMode === "treat" && settings.peopleCount >= 4) count = Math.min(10, count + 1);
+  return count;
 }
 
 function calculatePlanSummary(plan, settings = getSettings()) {
@@ -1297,8 +1368,31 @@ function isHeavyDish(dish) {
   return /鸭血|毛血旺|牛蛙|鸡爪|猪耳|腊肉/.test(dish.name);
 }
 
+function isBudgetStretchDish(dish) {
+  return isBigDish(dish) || isHeavyDish(dish) || dish.price >= 45;
+}
+
+function isSpicyDish(dish) {
+  return /麻辣|酸辣|辣子|泡椒|剁椒|青椒|尖椒|水煮|毛血旺/.test(dish.name);
+}
+
 function isProteinDish(dish) {
   return !isVegetable(dish) && !isSoup(dish);
+}
+
+function getDishFamily(dish) {
+  const name = dish.name;
+  if (isSoup(dish)) return "汤";
+  if (isOrganDish(dish)) return "内脏";
+  if (dish.type === "fish" || /鱼|带鱼|鱼头|鲫鱼/.test(name)) return "鱼";
+  if (/豆腐|腐竹|豆芽|黄豆|豆干|豆皮|干叶豆腐/.test(name)) return "豆制品";
+  if (/鸡爪|土鸡|鸡胗|鸡杂|辣子鸡/.test(name)) return "鸡";
+  if (/排骨|扇子骨|仔排|筒骨/.test(name)) return "骨头";
+  if (/牛肉|牛蛙|牛杂|牛肚/.test(name)) return "牛";
+  if (/炒蛋|蛋汤|皮蛋/.test(name)) return "蛋";
+  if (/干锅/.test(name) || hasDishCategory(dish, "干锅类")) return "干锅";
+  if (isSpicyDish(dish)) return "辣口";
+  return getPrimaryCategory(dish);
 }
 
 function getCategoryCount(plan, category) {
@@ -1311,6 +1405,10 @@ function hasSimilarDish(plan, dish) {
   if (isSoup(dish) && plan.some(isSoup)) return true;
   if (dish.type === "fish" && plan.some((item) => item.type === "fish")) return true;
   if (isVegetable(dish) && plan.filter(isVegetable).length >= 2) return true;
+  const family = getDishFamily(dish);
+  if (["内脏", "鱼", "豆制品", "鸡", "骨头", "牛", "蛋", "干锅"].includes(family)) {
+    return plan.some((item) => getDishFamily(item) === family);
+  }
   return false;
 }
 
@@ -1339,7 +1437,10 @@ function addDish(plan, dish) {
 function getMealSlots(settings) {
   const excludeSoup = settings.excludedTags.includes("汤类");
   const excludeBigDish = settings.excludedTags.includes("大菜");
-  const shouldUseBigDish = !excludeBigDish && settings.totalBudget >= 90;
+  const shouldUseBigDish =
+    !excludeBigDish &&
+    settings.mealMode !== "budget" &&
+    (settings.totalBudget >= 90 || settings.mealMode === "treat");
 
   if (settings.dishCountMode !== "auto") {
     const count = getTargetDishCount(settings);
@@ -1349,9 +1450,12 @@ function getMealSlots(settings) {
     return slots.slice(0, count);
   }
 
-  if (settings.peopleCount <= 2) return excludeSoup ? ["protein", "vegetable", "vegetable"] : ["protein", "vegetable", "soup"];
+  if (settings.peopleCount <= 2) {
+    if (settings.mealMode === "hearty") return excludeSoup ? ["protein", "protein", "vegetable"] : ["protein", "protein", "soup"];
+    return excludeSoup ? ["protein", "vegetable", "vegetable"] : ["protein", "vegetable", "soup"];
+  }
   if (settings.peopleCount <= 4) {
-    const core = shouldUseBigDish ? ["big", "protein"] : ["protein", "protein"];
+    const core = shouldUseBigDish ? ["big", "protein"] : settings.mealMode === "light" ? ["protein", "vegetable"] : ["protein", "protein"];
     const slots = excludeSoup ? [...core, "vegetable", "vegetable"] : [...core, "vegetable", "soup"];
     if (getTargetDishCount(settings) > 4) slots.splice(3, 0, "vegetable");
     return slots;
@@ -1374,6 +1478,21 @@ function getSlotPredicate(slot) {
   return isProteinDish;
 }
 
+function getBestSlotForDish(dish, slots) {
+  const priority = ["soup", "vegetable", "big", "hard", "protein"];
+  return priority.find((slot) => slots.includes(slot) && getSlotPredicate(slot)(dish));
+}
+
+function getRemainingMealSlots(settings, fixedDishes = []) {
+  const slots = [...getMealSlots(settings)];
+  fixedDishes.forEach((dish) => {
+    const matchedSlot = getBestSlotForDish(dish, slots);
+    if (!matchedSlot) return;
+    slots.splice(slots.indexOf(matchedSlot), 1);
+  });
+  return slots;
+}
+
 function getDishScore(dish, plan, settings, slot, noise = 4) {
   const targetDishBudget = Math.max(18, settings.totalBudget / settings.discount / Math.max(1, getTargetDishCount(settings)));
   let score = Math.random() * noise;
@@ -1387,13 +1506,37 @@ function getDishScore(dish, plan, settings, slot, noise = 4) {
   if (slot === "vegetable" && hasDishCategory(dish, "田园时蔬")) score += 22;
   if (slot === "soup" && dish.price <= 20) score += 22;
 
+  if (settings.mealMode === "budget") {
+    if (dish.price <= 25) score += 18;
+    if (isBudgetStretchDish(dish)) score -= 150;
+  }
+
+  if (settings.mealMode === "light") {
+    if (isVegetable(dish) || isSoup(dish)) score += 18;
+    if (isSpicyDish(dish)) score -= 30;
+    if (isHeavyDish(dish) || isOrganDish(dish) || hasDishCategory(dish, "干锅类")) score -= 28;
+  }
+
+  if (settings.mealMode === "hearty") {
+    if (hasDishCategory(dish, "家常小炒") || hasDishCategory(dish, "盖菜类")) score += 18;
+    if (isSpicyDish(dish)) score += 8;
+    if (isSoup(dish)) score -= 6;
+  }
+
+  if (settings.mealMode === "treat") {
+    if (isBigDish(dish) || isHardDish(dish)) score += 24;
+    if (dish.price >= 45 && dish.price <= 65) score += 12;
+    if (isVegetable(dish) && dish.price <= 15) score -= 8;
+  }
+
   if (dish.price >= targetDishBudget * 0.7 && dish.price <= targetDishBudget * 1.55) score += 12;
   if (dish.price <= 18 && slot !== "vegetable" && slot !== "soup") score -= 10;
   if (isOrganDish(dish)) score -= plan.some(isOrganDish) ? 60 : 16;
   if (isHeavyDish(dish)) score -= plan.some(isHeavyDish) ? 60 : 12;
+  if (isSpicyDish(dish)) score -= plan.filter(isSpicyDish).length * 18;
   if (getCategoryCount(plan, getPrimaryCategory(dish)) > 0) score -= 18;
   if (hasSimilarDish(plan, dish)) score -= 35;
-  if (dish.price >= 55 && settings.totalBudget < 110) score -= 18;
+  if (dish.price >= 55 && settings.totalBudget < 110 && settings.mealMode !== "treat") score -= 18;
 
   return score;
 }
@@ -1415,6 +1558,7 @@ function pickForSlot(candidates, plan, settings, slot, strict = true, options = 
   const predicate = getSlotPredicate(slot);
   const scoredDishes = candidates
     .filter((dish) => predicate(dish) && canAddDish(plan, dish, strict))
+    .filter((dish) => !(settings.mealMode === "budget" && isBudgetStretchDish(dish)))
     .map((dish) => ({ dish, score: getDishScore(dish, plan, settings, slot, options.noise ?? 4) }))
     .sort((a, b) => b.score - a.score);
 
@@ -1422,11 +1566,13 @@ function pickForSlot(candidates, plan, settings, slot, strict = true, options = 
 }
 
 function getBudgetLimit(settings) {
-  return (settings.totalBudget * 1.05) / settings.discount - settings.peopleCount * settings.tablewareFee;
+  const ratio = settings.mealMode === "budget" ? 0.95 : 1.05;
+  return (settings.totalBudget * ratio) / settings.discount - settings.peopleCount * settings.tablewareFee;
 }
 
 function getTargetBudgetSubtotal(settings) {
-  return settings.totalBudget / settings.discount - settings.peopleCount * settings.tablewareFee;
+  const ratio = settings.mealMode === "budget" ? 0.86 : settings.mealMode === "treat" ? 1.02 : 1;
+  return (settings.totalBudget * ratio) / settings.discount - settings.peopleCount * settings.tablewareFee;
 }
 
 function getDishSubtotal(plan) {
@@ -1461,9 +1607,10 @@ function trimToBudget(plan, candidates, settings) {
       const replacement = cheapestBy(
       candidates,
       (dish) =>
-        getPrimaryCategory(dish) === getPrimaryCategory(removable) ||
-        (isVegetable(removable) && isVegetable(dish)) ||
-        (isSoup(removable) && isSoup(dish)),
+        !(settings.mealMode === "budget" && isBudgetStretchDish(dish)) &&
+        (getPrimaryCategory(dish) === getPrimaryCategory(removable) ||
+          (isVegetable(removable) && isVegetable(dish)) ||
+          (isSoup(removable) && isSoup(dish))),
       new Set(nextPlan.map((dish) => dish.id)),
     );
 
@@ -1497,7 +1644,30 @@ function improveBudgetUsage(plan, candidates, settings) {
   let nextPlan = [...plan];
   const budgetLimit = getBudgetLimit(settings);
   const targetSubtotal = getTargetBudgetSubtotal(settings);
+  const targetCount = Math.max(nextPlan.length, Math.min(getTargetDishCount(settings), candidates.length));
   let guard = 0;
+
+  while (nextPlan.length < targetCount && getDishSubtotal(nextPlan) < targetSubtotal * 0.92) {
+    const currentSubtotal = getDishSubtotal(nextPlan);
+    const missingSlots = getRemainingMealSlots(settings, nextPlan);
+    const preferredSlot =
+      missingSlots.find((slot) => !nextPlan.some((dish) => getSlotPredicate(slot)(dish))) ||
+      (nextPlan.filter(isVegetable).length < 1 ? "vegetable" : "protein");
+    const addable = candidates
+      .filter((dish) => canAddDish(nextPlan, dish, true))
+      .filter((dish) => !(settings.mealMode === "budget" && isBudgetStretchDish(dish)))
+      .filter((dish) => currentSubtotal + dish.price <= budgetLimit)
+      .map((dish) => {
+        const nextSubtotal = currentSubtotal + dish.price;
+        const gap = Math.abs(targetSubtotal - nextSubtotal);
+        const roleBonus = getSlotPredicate(preferredSlot)(dish) ? 22 : 0;
+        return { dish, score: -gap + roleBonus - (isOrganDish(dish) ? 16 : 0) - (isHeavyDish(dish) ? 12 : 0) };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    if (!addable[0] || addable[0].score < -targetSubtotal * 0.18) break;
+    addDish(nextPlan, addable[0].dish);
+  }
 
   while (getDishSubtotal(nextPlan) < targetSubtotal && guard < 12) {
     guard += 1;
@@ -1507,6 +1677,7 @@ function improveBudgetUsage(plan, candidates, settings) {
     nextPlan.forEach((oldDish) => {
       const slot = getSlotForDish(oldDish);
       candidates.forEach((newDish) => {
+        if (settings.mealMode === "budget" && isBudgetStretchDish(newDish)) return;
         if (!canReplaceDish(nextPlan, oldDish, newDish)) return;
 
         const newSubtotal = currentSubtotal - oldDish.price + newDish.price;
@@ -1550,6 +1721,18 @@ function getPlanCategoryDuplicates(plan) {
   return Object.values(counts).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
 }
 
+function getPlanFamilyDuplicates(plan) {
+  const counts = plan.reduce((groups, dish) => {
+    const key = getDishFamily(dish);
+    groups[key] = (groups[key] || 0) + 1;
+    return groups;
+  }, {});
+  return Object.entries(counts).reduce((sum, [family, count]) => {
+    if (["田园时蔬", "家常小炒", "盖菜类"].includes(family)) return sum;
+    return sum + Math.max(0, count - 1);
+  }, 0);
+}
+
 function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   if (plan.length === 0) return -Infinity;
 
@@ -1564,12 +1747,16 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   const heavyCount = plan.filter(isHeavyDish).length;
   const organCount = plan.filter(isOrganDish).length;
   const fishCount = plan.filter((dish) => dish.type === "fish").length;
+  const spicyCount = plan.filter(isSpicyDish).length;
   const highPriceCount = plan.filter((dish) => dish.price >= 55).length;
   const fixedMissingCount = fixedDishes.filter((fixedDish) => !plan.some((dish) => dish.id === fixedDish.id)).length;
+  const previousPlanIds = new Set(currentPlan.map((dish) => dish.id));
+  const previousOverlapCount = plan.filter((dish) => previousPlanIds.has(dish.id) && !fixedDishIds.has(dish.id)).length;
   const soupAllowed = !settings.excludedTags.includes("汤类");
   const bigDishAllowed = !settings.excludedTags.includes("大菜");
   const shouldHaveSoup = soupAllowed && targetCount >= 3;
-  const shouldHaveBigDish = bigDishAllowed && settings.totalBudget >= 100 && targetCount >= 4;
+  const shouldHaveBigDish =
+    bigDishAllowed && settings.mealMode !== "budget" && (settings.totalBudget >= 100 || settings.mealMode === "treat") && targetCount >= 4;
 
   let score = 1000;
 
@@ -1583,12 +1770,16 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
 
   score -= Math.abs(plan.length - targetCount) * 120;
   score -= fixedMissingCount * 1000;
+  score -= previousOverlapCount * 46;
+  if (previousOverlapCount === plan.length && plan.length > 0) score -= 180;
   score -= getPlanCategoryDuplicates(plan) * 52;
+  score -= getPlanFamilyDuplicates(plan) * 72;
   score -= Math.max(0, vegetableCount - 2) * 42;
   score -= Math.max(0, soupCount - 1) * 90;
   score -= Math.max(0, fishCount - 1) * 88;
   score -= Math.max(0, organCount - 1) * 90;
   score -= Math.max(0, heavyCount - 1) * 88;
+  score -= Math.max(0, spicyCount - 2) * 44;
   score -= Math.max(0, highPriceCount - 1) * 46;
 
   if (vegetableCount === 0 && targetCount >= 3) score -= 150;
@@ -1599,11 +1790,21 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   if (!bigDishAllowed && bigDishCount > 0) score -= 600;
   if (bigDishCount > 1 && settings.peopleCount <= 4) score -= 76;
   if (summary.finalTotal > settings.totalBudget * 1.05) score -= 700;
-  if (summary.finalTotal < settings.totalBudget * 0.82 && candidates.length > targetCount) score -= 160;
+  if (summary.finalTotal < settings.totalBudget * 0.9 && candidates.length > targetCount) {
+    score -= 120 + ((settings.totalBudget * 0.9 - summary.finalTotal) / settings.totalBudget) * 520;
+  }
+  if (summary.finalTotal >= settings.totalBudget * 0.95 && summary.finalTotal <= settings.totalBudget * 1.02) score += 90;
+  if (settings.mealMode === "budget" && summary.finalTotal <= settings.totalBudget * 0.9) score += 140;
+  if (settings.mealMode === "budget" && summary.finalTotal > settings.totalBudget * 0.95) score -= 360;
+  if (settings.mealMode === "treat" && summary.finalTotal >= settings.totalBudget * 0.9) score += 70;
+  if (settings.mealMode === "light") score -= spicyCount * 45 + heavyCount * 35 + organCount * 35;
+  if (settings.mealMode === "hearty" && proteinCount >= vegetableCount) score += 55;
+  if (settings.mealMode === "treat" && bigDishCount > 0) score += 90;
 
   plan.forEach((dish) => {
     if (isOrganDish(dish)) score -= 14;
     if (isHeavyDish(dish)) score -= 12;
+    if (isSpicyDish(dish)) score -= 4;
     if (dish.price >= 55 && settings.totalBudget < 120) score -= 28;
     if (isVegetable(dish) && dish.price <= 18) score += 8;
     if (isSoup(dish) && dish.price <= 20) score += 10;
@@ -1616,7 +1817,8 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
 function buildCandidatePlan(candidates, settings, fixedDishes = [], attempt = 0) {
   const targetCount = Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
   const plan = [...fixedDishes];
-  const slots = attempt % 3 === 0 ? getMealSlots(settings) : shuffleList(getMealSlots(settings));
+  const remainingSlots = getRemainingMealSlots(settings, fixedDishes);
+  const slots = attempt % 3 === 0 ? remainingSlots : shuffleList(remainingSlots);
   const budgetLimit = getBudgetLimit(settings);
   const pickOptions = { weighted: attempt > 0, noise: attempt === 0 ? 1 : 12 };
 
@@ -1719,20 +1921,53 @@ function renderSummary() {
     elements.budgetStatus.classList.add("over");
   }
 
+  if (elements.explainText) {
+    elements.explainText.textContent = getRecommendationExplanation(currentPlan, summary, settings);
+  }
+
   renderReviewText(summary, settings);
 }
 
 function getDishRoleSummary(plan) {
-  const vegetableCount = plan.filter(isVegetable).length;
-  const soupCount = plan.filter(isSoup).length;
-  const proteinCount = plan.filter(isProteinDish).length;
   const bigDishCount = plan.filter(isBigDish).length;
+  const soupCount = plan.filter(isSoup).length;
+  const vegetableCount = plan.filter((dish) => isVegetable(dish) && !isBigDish(dish) && !isSoup(dish)).length;
+  const proteinCount = plan.filter((dish) => isProteinDish(dish) && !isBigDish(dish)).length;
   const parts = [];
+  if (bigDishCount > 0) parts.push(`${bigDishCount}道硬菜`);
   if (proteinCount > 0) parts.push(`${proteinCount}道下饭菜`);
   if (vegetableCount > 0) parts.push(`${vegetableCount}道素菜`);
   if (soupCount > 0) parts.push(`${soupCount}个汤`);
-  if (bigDishCount > 0) parts.push(`${bigDishCount}道硬菜`);
   return parts.join("、") || "搭配均衡";
+}
+
+function getMealModeLabel(mode) {
+  return {
+    budget: "省钱点",
+    light: "清淡点",
+    hearty: "下饭点",
+    treat: "吃好点",
+    normal: "正常吃",
+  }[mode] || "正常吃";
+}
+
+function getRecommendationExplanation(plan = currentPlan, summary = calculatePlanSummary(currentPlan), settings = getSettings()) {
+  if (plan.length === 0) return "生成菜单后会说明这桌为什么这样配。";
+
+  const fixedCount = plan.filter((dish) => fixedDishIds.has(dish.id)).length;
+  const budgetText =
+    Math.abs(summary.budgetDiff) <= settings.totalBudget * 0.05
+      ? `预算贴近，差 ${money(Math.abs(summary.budgetDiff))}`
+      : summary.budgetDiff > 0
+        ? `预算内，剩 ${money(summary.budgetDiff)}`
+        : `略超预算 ${money(Math.abs(summary.budgetDiff))}`;
+  const parts = [`${getMealModeLabel(settings.mealMode)}模式`, getDishRoleSummary(plan), budgetText];
+
+  if (fixedCount > 0) parts.push(`保留 ${fixedCount} 道固定菜`);
+  if (settings.excludedTags.length > 0) parts.push(`已避开 ${settings.excludedTags.join("、")}`);
+  if (settings.minRating !== "none") parts.push(`过滤低于 ${settings.minRating} 分`);
+
+  return parts.join(" · ");
 }
 
 function hashText(text) {
@@ -1752,70 +1987,102 @@ function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(c
   const dishText = dishNames.length > 3 ? `${highlightDishes}这些菜` : `${highlightDishes}这几道菜`;
   const soupDish = plan.find(isSoup);
   const vegetableDish = plan.find(isVegetable);
+  const spicyDish = plan.find(isSpicyDish);
+  const freshDish = plan.find((dish) => dish.type === "fish" || /虾|鱼|河虾|鲫鱼/.test(dish.name));
   const bigDish = plan.find(isBigDish) || plan.find(isProteinDish) || plan[0];
   const otherDishNames = dishNames.filter((name) => name !== bigDish.name).slice(0, 3);
   const comboText = otherDishNames.length > 0 ? `${bigDish.name}配${otherDishNames.join("、")}` : dishText;
-  const tasteLine = soupDish
-    ? `${soupDish.name}也做得顺口，配小炒很舒服。`
-    : vegetableDish
-      ? `${vegetableDish.name}炒得清爽，配重口小炒正好。`
-      : "整体火候在线，吃起来很有家常味。";
   const variant = currentReviewVariant;
+
+  const featureLines = [
+    soupDish ? `${soupDish.name}喝起来顺口，和热炒搭在一起很舒服` : "",
+    vegetableDish ? `${vegetableDish.name}处理得清爽，刚好把这一桌的口味拉平衡` : "",
+    spicyDish ? `${spicyDish.name}香味出来得快，辣得有存在感但不抢味` : "",
+    freshDish ? `${freshDish.name}吃着比较鲜，调味没有盖过食材本身` : "",
+    isOrganDish(bigDish) ? `${bigDish.name}处理得干净，火候和调味都挺稳` : "",
+    isBigDish(bigDish) ? `${bigDish.name}作为主菜很撑场面，香味和入味程度都在线` : "",
+    `${bigDish.name}是这一桌里很亮的一道，咸香、热乎、很适合配饭`,
+    `${comboText}搭在一起不单调，几个人分着吃很顺`,
+    `${dishText}整体都比较稳，没有那种凑数的感觉`,
+  ].filter(Boolean);
+
   const openings = [
-    "这家江西小炒真的可以冲",
-    "附近想吃热乎小炒可以来这家",
-    "今天这顿江西小炒没踩雷",
-    "这家小炒店蛮有烟火气",
-    "工作日午餐选这家挺稳",
-    "喜欢锅气重的可以试试这家",
-    "这家江西小炒属于会回头的类型",
-    "想吃下饭菜的时候这家很合适",
-    "这顿小炒吃完挺满足",
-    "这家店给我的感觉就是实在",
+    "这家江西小炒挺对胃口",
+    "今天这顿小炒吃得很舒服",
+    "想吃热乎现炒的时候可以来这家",
+    "这家店的家常味做得挺稳",
+    "午餐选这家没有踩雷",
+    "喜欢烟火气小炒的可以试试",
+    "这家属于吃完会记住的江西小炒",
+    "这顿饭最直观的感觉就是下饭",
+    "附近想吃家常热菜可以考虑这家",
+    "这家不是花哨路线，但味道很扎实",
+    "这顿小炒有点超出预期",
+    "今天点的这桌很适合朋友同事一起吃",
+    "这家店给人的感觉挺踏实",
+    "想换换口味吃江西小炒，这家可以",
+    "这顿饭吃下来印象不错",
   ];
   const wokLines = [
-    "菜都是现炒端上来，热气和锅气都很明显",
-    "猛火快炒的香味一上桌就有了，闻着就开胃",
-    "小炒该有的锅气在线，不是那种冷冰冰的口感",
-    "端上来还是热乎的，家常小炒的香味很足",
-    "火候拿捏得不错，吃得出是现炒出来的",
-    "整体是咸香下饭的路子，很适合配米饭",
-    "辣味和香味都比较直接，越吃越想扒饭",
-    "不是精致摆盘那种，胜在热乎、实在、有锅气",
-    "青椒蒜香和油香都出来了，就是江西小炒那口",
-    "上桌第一口就觉得有烟火气，挺对胃口",
+    "菜端上来还是热的，锅气和香味都很明显",
+    "猛火快炒的感觉有出来，闻到就很开胃",
+    "小炒该有的香气在线，不是那种寡淡口感",
+    "火候拿捏得不错，入口有热菜该有的鲜香",
+    "整体是咸香下饭的路子，越吃越顺",
+    "蒜香、椒香和油香融合得挺自然",
+    "菜品上桌节奏还可以，中午吃饭不用等太久",
+    "家常小炒的烟火气比较足，吃着不敷衍",
+    "调味不会飘，入口是比较稳定的江西小炒味",
+    "不是靠摆盘取胜，重点是热乎和顺口",
+    "每道菜都有现炒的感觉，香味比较直接",
+    "口味很接地气，适合日常想吃米饭的时候",
+    "整体火候比较利落，菜没有软塌塌的感觉",
+    "一桌菜上来颜色和香味都挺有食欲",
+    "吃起来是熟悉的家常路线，但比外卖舒服不少",
   ];
   const dishLines = [
-    `${dishText}都挺下饭，尤其${bigDish.name}味道很稳`,
-    `${comboText}放在一起很舒服，咸香有层次`,
-    `${dishText}点得不花哨，但每道都能配饭`,
+    `${dishText}都很适合配饭，尤其${bigDish.name}味道很稳`,
+    `${comboText}放在一起很舒服，咸香层次比较清楚`,
+    `${dishText}点得不花哨，但每道都有自己的味道`,
     `这桌里${bigDish.name}比较突出，香味和火候都不错`,
-    `${comboText}很适合几个人分着吃，口味不单调`,
+    `${comboText}适合几个人分着吃，口味不会单一`,
     `${dishText}吃下来没有明显短板，家常但顺口`,
     `${bigDish.name}做得挺入味，配其他菜刚刚好`,
-    `${dishText}属于越吃越香的类型，米饭很容易不够`,
-    `这几道菜搭在一起很像日常会回购的工作餐`,
-    `${comboText}这一桌比较实在，吃完不会觉得亏`,
+    `${dishText}属于越吃越香的类型，米饭很容易见底`,
+    `这几道菜搭在一起很像日常会回头的工作餐`,
+    `${comboText}这一桌搭配自然，荤素和口味都不突兀`,
+    `点的${dishText}都比较有记忆点，不是随便炒一炒`,
+    `${bigDish.name}入口很有存在感，旁边几道菜也没有掉线`,
+    `${highlightDishes}放在一桌很协调，吃起来有主有配`,
+    `这桌菜没有靠重油重盐硬撑味道，整体挺耐吃`,
   ];
   const serviceLines = [
-    "出菜速度也可以，适合中午赶时间来吃",
+    "出菜速度也可以，适合中午想吃正餐的时候来",
     "店里不用搞得很复杂，重点就是饭菜热乎好吃",
-    "分量给得比较实在，几个人一起点很划算",
-    "整体吃下来很舒服，不会觉得油腻负担",
-    "这种店就是胜在稳定，想吃家常菜时很省心",
+    "整体吃下来很舒服，没有明显油腻负担",
+    "这种店胜在稳定，想吃家常菜时很省心",
     "口味比较接地气，适合附近上班族日常吃",
     "菜品选择多，几个人来点一桌很方便",
     "不想吃外卖的时候，来这里吃现炒更舒服",
+    "店里气氛比较日常，吃饭不会有压力",
+    "服务节奏挺顺，点菜上菜都比较利落",
+    "整体体验是轻松的，适合工作日简单聚餐",
+    "菜上桌后温度保持得不错，吃到后面也不会冷冰冰",
+    "菜单选择比较家常，第一次来也不难点",
   ];
   const valueLines = [
-    "几个人一起吃也很合适，热热闹闹刚刚好",
-    "整体分量挺实在，吃完很有满足感",
-    "比随便点外卖舒服多了，现炒热菜还是不一样",
-    "中午来吃很省心，点一桌大家都能夹几口",
-    "口味和分量都在线，不是随便糊弄的水平",
+    "几个人一起吃很合适，热热闹闹刚刚好",
+    "整体分量感不错，吃完很有满足感",
+    "现炒热菜的幸福感还是很明显",
+    "中午来吃很省心，点一桌大家都能夹到喜欢的",
+    "口味和出品都在线，不是随便糊弄的水平",
     "吃完不会觉得腻，反而还想下次再试别的菜",
     "很适合工作日午餐，吃得热乎也吃得踏实",
     "这类家常小炒就是要这样，简单直接又下饭",
+    "整体没有网红感，但胜在耐吃和稳定",
+    "如果想吃一顿有烟火气的饭，这家挺合适",
+    "这一桌吃下来很顺，大家都能找到喜欢的口味",
+    "比起随便解决一餐，这种现炒小馆更有幸福感",
   ];
   const closings = [
     "下次想吃江西小炒还会再来。",
@@ -1823,21 +2090,27 @@ function generateReviewText(plan = currentPlan, summary = calculatePlanSummary(c
     "附近上班的话，这家可以放进常吃清单。",
     "想吃热乎、下饭、带锅气的，可以试试。",
     "整体是会推荐给同事的一家小炒店。",
-    "不是网红噱头，胜在实在好吃。",
-    "喜欢家常重口小炒的应该会满意。",
+    "不是网红噱头，胜在饭菜本身靠谱。",
+    "喜欢家常小炒的人应该会满意。",
     "这一顿吃完，下午上班都踏实了。",
+    "下次准备再来试试别的招牌菜。",
+    "如果路过附近，可以安排一顿。",
+    "属于不用纠结、直接来吃也稳的店。",
+    "总体体验不错，会愿意再来。",
   ];
 
   const opening = pickReviewPart(openings, seed, variant, 1);
   const wokLine = pickReviewPart(wokLines, seed, variant, 2);
-  const dishLine = pickReviewPart(dishLines, seed, variant, 3);
+  const dishLine = pickReviewPart([...dishLines, ...featureLines], seed, variant, 3);
   const serviceLine = pickReviewPart(serviceLines, seed, variant, 4);
   const valueLine = pickReviewPart(valueLines, seed, variant, 5);
   const closing = pickReviewPart(closings, seed, variant, 6);
-  const detailLine = variant % 3 === 0 ? tasteLine : serviceLine;
-  const detailText = detailLine.endsWith("。") ? detailLine : `${detailLine}。`;
-
-  return `${opening}，${wokLine}。${dishLine}，${detailText}${valueLine}，${closing}`;
+  const detailLine = variant % 3 === 0 ? pickReviewPart(featureLines, seed, variant, 7) : serviceLine;
+  const sentenceParts = [opening, wokLine, dishLine, detailLine, valueLine, closing]
+    .map((part) => part.replace(/[。,.，]+$/g, ""))
+    .filter(Boolean);
+  const text = `${sentenceParts[0]}，${sentenceParts[1]}。${sentenceParts[2]}，${sentenceParts[3]}。${sentenceParts[4]}，${sentenceParts[5]}。`;
+  return text.length > 130 ? `${sentenceParts[0]}，${sentenceParts[1]}。${sentenceParts[2]}。${sentenceParts[5]}。` : text;
 }
 
 function renderReviewText(summary, settings) {
@@ -1906,7 +2179,6 @@ function renderPlan() {
               <em class="source-pill ${fixed ? "fixed" : "random"}">${fixed ? "固定" : "随机"}</em>
             </div>
             <span class="plan-meta">${getDishLabel(dish)}</span>
-            <div class="plan-category-row">${getDishCategorySelect(dish, "inline-category-select", "data-plan-category-id")}</div>
           </div>
           <b class="plan-price">${dish.price}<span>元</span></b>
           <div class="plan-actions">
@@ -2056,13 +2328,18 @@ function renderWeeklyPlans() {
 function renderCalendar() {
   const monthStart = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
   const monthEnd = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0);
-  const gridStart = new Date(monthStart);
-  gridStart.setDate(monthStart.getDate() - ((monthStart.getDay() + 6) % 7));
+  const firstWeekday = (monthStart.getDay() + 6) % 7;
+  const dayCount = monthEnd.getDate();
+  const rowCount = Math.ceil((firstWeekday + dayCount) / 7);
+  const weekLabels = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
   const plansByDate = getPlansByDate();
   const currentMonthKey = getMonthKey(monthStart);
   const monthPlans = getAllSavedPlans().filter((plan) => getMonthKey(plan.savedAt) === currentMonthKey);
   const totalSavedDays = new Set(monthPlans.map((plan) => getDateKey(plan.savedAt))).size;
+  const monthDateKeys = Object.keys(plansByDate)
+    .filter((dateKey) => getMonthKey(dateKey) === currentMonthKey)
+    .sort((a, b) => new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`));
   const todayKey = getDateKey(new Date());
 
   elements.calendarMonth.textContent = monthStart.toLocaleDateString("zh-CN", {
@@ -2073,17 +2350,85 @@ function renderCalendar() {
     monthPlans.length > 0
       ? `本月 ${totalSavedDays} 天有记录，共保存 ${monthPlans.length} 套菜单`
       : "这个月还没有保存菜单";
+  if (elements.calendarRecordCount) {
+    elements.calendarRecordCount.textContent = `${totalSavedDays} 天`;
+  }
 
-  const dayCells = Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(gridStart);
-    date.setDate(gridStart.getDate() + index);
+  if (elements.calendarInsights) {
+    const sortedMonthPlans = [...monthPlans].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+    const latestPlan = sortedMonthPlans[0];
+    const dishCounts = monthPlans.reduce((counts, plan) => {
+      plan.dishes.forEach((dish) => {
+        counts[dish.name] = (counts[dish.name] || 0) + 1;
+      });
+      return counts;
+    }, {});
+    const frequentDishes = Object.entries(dishCounts)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-CN"))
+      .slice(0, 3)
+      .map(([name, count]) => `${name}${count > 1 ? ` x${count}` : ""}`);
+
+    elements.calendarInsights.innerHTML = `
+      <span>本月保存 <strong>${monthPlans.length}</strong> 套</span>
+      <span><strong>${totalSavedDays}</strong> 天有记录</span>
+      <span>最近一次：<strong>${
+        latestPlan ? new Date(latestPlan.savedAt).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }) : "暂无"
+      }</strong></span>
+      <span class="calendar-insight-dishes">常见菜：${frequentDishes.length ? frequentDishes.join("、") : "暂无"}</span>
+    `;
+  }
+
+  if (elements.calendarRecordList) {
+    elements.calendarRecordList.innerHTML = monthDateKeys.length
+      ? monthDateKeys
+          .map((dateKey) => {
+            const date = new Date(`${dateKey}T00:00:00`);
+            const dayPlans = plansByDate[dateKey] || [];
+            return `
+              <article class="calendar-record-day">
+                <div class="calendar-record-date">
+                  <strong>${date.getMonth() + 1}/${date.getDate()}</strong>
+                  <span>${weekLabels[date.getDay()]} · ${dayPlans.length} 套</span>
+                </div>
+                <div class="calendar-record-plans">
+                  ${dayPlans
+                    .map(
+                      (plan) => `
+                        <div class="calendar-record-plan">
+                          <div class="calendar-record-plan-head">
+                            <b>${plan.peopleCount} 人 · ${money(plan.total)}</b>
+                            <time>${new Date(plan.savedAt).toLocaleTimeString("zh-CN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}</time>
+                          </div>
+                          <p>${plan.dishes.map((dish) => dish.name).join("、")}</p>
+                        </div>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              </article>
+            `;
+          })
+          .join("")
+      : `
+        <div class="calendar-empty-record">
+          <strong>这个月还没有记录</strong>
+          <span>在点菜页保存菜单后，这里会按日期列出来。</span>
+        </div>
+      `;
+  }
+
+  elements.calendarGrid.style.setProperty("--calendar-row-count", String(rowCount));
+  const dayCells = Array.from({ length: dayCount }, (_, index) => {
+    const date = new Date(monthStart);
+    date.setDate(index + 1);
     const dateKey = getDateKey(date);
     const dayPlans = plansByDate[dateKey] || [];
-    const isCurrentMonth = date.getMonth() === monthStart.getMonth();
     const isToday = dateKey === todayKey;
     const classes = [
       "calendar-day",
-      isCurrentMonth ? "" : "is-outside",
       isToday ? "is-today" : "",
       dayPlans.length ? "has-plan" : "",
     ]
@@ -2091,33 +2436,13 @@ function renderCalendar() {
       .join(" ");
 
     return `
-      <article class="${classes}">
+      <article class="${classes}" ${index === 0 ? `style="grid-column-start: ${firstWeekday + 1};"` : ""}>
         <div class="calendar-day-head">
           <time datetime="${dateKey}">${date.getDate()}</time>
           ${dayPlans.length ? `<span>${dayPlans.length} 餐</span>` : ""}
         </div>
         <div class="calendar-day-plans">
-          ${dayPlans
-            .slice(0, 2)
-            .map(
-              (plan) => `
-                <div class="calendar-plan">
-                  <div class="calendar-plan-head">
-                    <strong>${plan.peopleCount} 人 · ${money(plan.total)}</strong>
-                    <time>${new Date(plan.savedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</time>
-                  </div>
-                  <div class="calendar-dish-tags">
-                    ${plan.dishes
-                      .slice(0, 4)
-                      .map((dish) => `<span>${dish.name}</span>`)
-                      .join("")}
-                    ${plan.dishes.length > 4 ? `<em>+${plan.dishes.length - 4}</em>` : ""}
-                  </div>
-                </div>
-              `,
-            )
-            .join("")}
-          ${dayPlans.length > 2 ? `<em>还有 ${dayPlans.length - 2} 套</em>` : ""}
+          ${dayPlans.length ? `<span class="calendar-day-dot"></span><strong>${dayPlans.length} 套菜单</strong>` : ""}
         </div>
       </article>
     `;
@@ -2138,17 +2463,14 @@ function renderCandidates() {
 
   elements.dishGrid.innerHTML = candidates
     .map((dish) => {
-      const inPlan = currentPlan.some((item) => item.id === dish.id);
-      const isFixed = fixedDishIds.has(dish.id);
       const state = getDishFilterState(dish, settings);
       const statusPills = [
         `<span class="dish-rating">${getRatingText(dish.id)}</span>`,
-        isFixed ? '<em class="source-pill fixed">已固定</em>' : "",
         state.eatenThisWeek ? '<em class="source-pill muted">本周已吃</em>' : "",
         state.lowRated ? '<em class="source-pill warning">低分</em>' : "",
       ].join("");
         return `
-        <div class="dish-chip ${isFixed ? "is-fixed" : ""} ${state.eatenThisWeek || state.lowRated ? "is-muted" : ""}">
+        <div class="dish-chip ${state.eatenThisWeek || state.lowRated ? "is-muted" : ""}">
           <div class="dish-chip-head">
             <strong>${dish.name}</strong>
             <b>${dish.price} 元</b>
@@ -2157,9 +2479,6 @@ function renderCandidates() {
           ${getDishCategorySelect(dish, "inline-category-select", "data-menu-category-id")}
           <div class="dish-chip-footer">
             <div class="dish-status">${statusPills}</div>
-            <button class="mini-action" type="button" data-add-id="${dish.id}" ${isFixed ? "disabled" : ""}>
-              ${isFixed ? "已固定" : inPlan ? "固定这道" : "固定"}
-            </button>
           </div>
         </div>
       `;
@@ -2208,7 +2527,6 @@ function renderRatingCard(dish) {
         <b>${dish.price} 元</b>
       </div>
       <span class="rating-tags">${[...getDishCategories(dish), ...tags].join(" · ")}</span>
-      ${getDishCategorySelect(dish, "inline-category-select", "data-rating-category-id")}
       <div class="rating-card-foot">
         <div class="rating-card-status">
           <span>${getRatingText(dish.id)}</span>
@@ -2306,6 +2624,7 @@ function normalizeInputs() {
   elements.discount.value = settings.discount.toFixed(2);
   elements.dishCount.value = settings.dishCountMode === "auto" ? "" : settings.dishCountMode;
   elements.minRating.value = settings.minRating === "none" ? "none" : String(settings.minRating);
+  if (elements.mealMode) elements.mealMode.value = settings.mealMode;
 }
 
 function handleSettingsChange() {
@@ -2382,6 +2701,13 @@ function bindEvents() {
     });
   });
 
+  elements.baseTabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      activateBaseTab(button.dataset.baseTab);
+      button.blur();
+    });
+  });
+
   elements.addCategoryButton?.addEventListener("click", () => {
     const value = elements.categoryNameInput?.value || "";
     createCategory(value);
@@ -2451,7 +2777,7 @@ function bindEvents() {
   elements.planSearch.addEventListener("input", renderPlanSearchResults);
   elements.ratingSearch.addEventListener("input", renderRatingMaintenance);
 
-  [elements.category, elements.minRating].forEach(
+  [elements.category, elements.minRating, elements.mealMode].forEach(
     (element) => element.addEventListener("change", handleSettingsChange),
   );
   [elements.ratingCategory, elements.ratingStatus].forEach((element) => {
@@ -2478,12 +2804,6 @@ function bindEvents() {
     removeDish(Number(button.dataset.removeId));
   });
 
-  elements.planList.addEventListener("change", (event) => {
-    const select = event.target.closest("[data-plan-category-id]");
-    if (!select || !(select instanceof HTMLSelectElement)) return;
-    setDishPrimaryCategory(Number(select.dataset.planCategoryId), select.value);
-  });
-
   elements.planSearchResults.addEventListener("click", (event) => {
     const button = event.target.closest("[data-plan-add-id]");
     if (!button) return;
@@ -2507,12 +2827,6 @@ function bindEvents() {
   elements.ratingList.addEventListener("click", (event) => {
     if (handleClearRatingClick(event)) return;
     handleRatingClick(event);
-  });
-
-  elements.ratingList.addEventListener("change", (event) => {
-    const select = event.target.closest("[data-rating-category-id]");
-    if (!select || !(select instanceof HTMLSelectElement)) return;
-    setDishPrimaryCategory(Number(select.dataset.ratingCategoryId), select.value);
   });
 
   elements.weeklyList.addEventListener("click", (event) => {
@@ -2560,6 +2874,7 @@ renderCandidates();
 renderWeeklyPlans();
 renderCalendar();
 renderRatingMaintenance();
+activateBaseTab(localStorage.getItem(activeBaseTabKey) || "base-menu");
 activateTab(localStorage.getItem(activeTabKey) || "planner");
 
 if (initialCloudConfig.autoSync) {
