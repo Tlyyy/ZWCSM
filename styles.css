@@ -1154,12 +1154,13 @@ textarea:focus {
 }
 
 .dish-chip {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 8px;
-  min-height: 162px;
+  min-height: 206px;
   padding: 12px;
   background: #fff;
+  overflow: hidden;
 }
 
 .dish-chip:hover {
@@ -1209,11 +1210,11 @@ textarea:focus {
 }
 
 .dish-chip-footer {
-  margin-top: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   align-items: end;
+  align-self: end;
 }
 
 .dish-status {
