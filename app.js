@@ -2428,6 +2428,19 @@ function getRatingStars(dishId) {
     .join("");
 }
 
+function getReadonlyRatingStars(dishId) {
+  const rating = getDishRating(dishId);
+  const stars = [1, 2, 3, 4, 5]
+    .map((value) => `<span class="readonly-star ${rating >= value ? "active" : ""}">★</span>`)
+    .join("");
+  return `
+    <span class="readonly-rating" aria-label="${getRatingText(dishId)}">
+      <span class="readonly-stars">${stars}</span>
+      <span>${rating ? `${rating}分` : "未评"}</span>
+    </span>
+  `;
+}
+
 function getRatingText(dishId) {
   const rating = getDishRating(dishId);
   return rating ? `评分 ${rating}分` : "未评分";
@@ -2802,7 +2815,7 @@ function renderCandidates() {
     .map((dish) => {
       const state = getDishFilterState(dish, settings);
       const statusPills = [
-        `<span class="dish-rating">${getRatingText(dish.id)}</span>`,
+        getReadonlyRatingStars(dish.id),
         state.eatenThisWeek ? '<em class="source-pill muted">本周已吃</em>' : "",
         state.lowRated ? '<em class="source-pill warning">低分</em>' : "",
       ].join("");

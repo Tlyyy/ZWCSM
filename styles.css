@@ -1209,6 +1209,36 @@ textarea:focus {
   font-size: 0.82rem;
 }
 
+.readonly-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #efd0ca;
+  border-radius: 999px;
+  background: #fff8f7;
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.readonly-stars {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.readonly-star {
+  color: #cbd5e1;
+  line-height: 1;
+}
+
+.readonly-star.active {
+  color: var(--brand);
+}
+
 .dish-chip-footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
