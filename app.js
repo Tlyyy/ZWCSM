@@ -398,8 +398,6 @@ async function pullSupabaseState({ silent = false } = {}) {
   isApplyingRemoteState = true;
   try {
     applySyncPayload(result.data);
-    currentPlan = [];
-    fixedDishIds = new Set();
     refreshAllViews();
   } finally {
     isApplyingRemoteState = false;
