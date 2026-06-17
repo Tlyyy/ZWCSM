@@ -11,6 +11,12 @@ export const config = {
   },
 };
 
+function setCorsHeaders(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Sync-Room");
+}
+
 function getSupabaseClient() {
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("服务器缺少 SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY 环境变量");
@@ -35,6 +41,11 @@ function getRoomId(req) {
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
 
   if (!["GET", "PUT", "POST"].includes(req.method)) {
     res.setHeader("Allow", "GET, PUT, POST");

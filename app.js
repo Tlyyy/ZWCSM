@@ -334,6 +334,7 @@ let supabaseDebounceTimer = null;
 let supabaseAutoTimer = null;
 let isSupabaseAutoSyncRunning = false;
 let isApplyingRemoteState = false;
+let hasCompletedInitialCloudPull = false;
 
 function buildSyncPayload() {
   return {
@@ -429,7 +430,7 @@ async function pushSupabaseState({ silent = false } = {}) {
 }
 
 function scheduleSupabaseSync() {
-  if (isApplyingRemoteState || !isSupabaseAutoSyncEnabled()) return;
+  if (isApplyingRemoteState || !hasCompletedInitialCloudPull || !isSupabaseAutoSyncEnabled()) return;
   clearTimeout(supabaseDebounceTimer);
   supabaseDebounceTimer = setTimeout(async () => {
     try {
@@ -460,9 +461,13 @@ function startSupabaseAutoSync() {
   if (isSupabaseAutoSyncRunning) return;
   isSupabaseAutoSyncRunning = true;
   if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.textContent = "关闭自动同步";
-  pullSupabaseState({ silent: true }).catch((error) => {
-    setSyncStatus(`自动拉取失败：${error.message}`, "danger");
-  });
+  pullSupabaseState({ silent: true })
+    .catch((error) => {
+      setSyncStatus(`自动拉取失败：${error.message}`, "danger");
+    })
+    .finally(() => {
+      hasCompletedInitialCloudPull = true;
+    });
   supabaseAutoTimer = setInterval(() => {
     pullSupabaseState({ silent: true }).catch((error) => {
       setSyncStatus(`自动拉取失败：${error.message}`, "danger");

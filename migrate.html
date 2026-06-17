@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>迁移中午吃什么数据</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: "Microsoft YaHei", system-ui, sans-serif;
+        color: #071426;
+        background: #f5f7fb;
+      }
+      main {
+        width: min(720px, calc(100vw - 32px));
+        padding: 28px;
+        border: 1px solid #d5deea;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 18px 48px rgba(14, 29, 55, 0.12);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 26px;
+      }
+      p {
+        margin: 8px 0;
+        color: #526173;
+        line-height: 1.7;
+      }
+      label {
+        display: grid;
+        gap: 8px;
+        margin-top: 20px;
+        font-weight: 700;
+      }
+      input {
+        height: 42px;
+        padding: 0 12px;
+        border: 1px solid #ccd6e4;
+        border-radius: 8px;
+        font: inherit;
+      }
+      button {
+        height: 44px;
+        margin-top: 16px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 8px;
+        color: #fff;
+        background: #c51f14;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      .status {
+        margin-top: 18px;
+        padding: 12px;
+        border: 1px solid #d5deea;
+        border-radius: 8px;
+        background: #f8fafc;
+        white-space: pre-wrap;
+      }
+      .ok {
+        border-color: #99d8bd;
+        background: #eefaf5;
+        color: #087047;
+      }
+      .danger {
+        border-color: #f0b6ae;
+        background: #fff4f2;
+        color: #a21710;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>旧站数据迁移</h1>
+      <p>这个页面必须在旧地址打开，才能读取旧地址里保存的本地数据。</p>
+      <p>点击迁移后，会把旧站的评分、本周菜单、类别数据上传到 Vercel 云端接口。</p>
+      <label>
+        同步房间号
+        <input id="room" value="zwcsm" autocomplete="off" />
+      </label>
+      <button id="migrate" type="button">迁移到新站云端</button>
+      <div id="status" class="status">正在检查旧站本地数据...</div>
+    </main>
+
+    <script>
+      const keys = {
+        categoryData: "lunch-picker-category-data-v1",
+        weeklyPlans: "lunch-picker-weekly-plans-v1",
+        dishRatings: "lunch-picker-dish-ratings-v1",
+        activeTab: "lunch-picker-active-tab-v1",
+        activeBaseTab: "lunch-picker-active-base-tab-v1",
+      };
+      const statusEl = document.querySelector("#status");
+      const buttonEl = document.querySelector("#migrate");
+      const roomEl = document.querySelector("#room");
+
+      function readJson(key, fallback) {
+        try {
+          return JSON.parse(localStorage.getItem(key)) || fallback;
+        } catch {
+          return fallback;
+        }
+      }
+
+      function buildPayload() {
+        return {
+          app: "ZWCSM",
+          schema: 2,
+          updatedAt: new Date().toISOString(),
+          categoryData: readJson(keys.categoryData, null),
+          weeklyPlans: readJson(keys.weeklyPlans, {}),
+          dishRatings: readJson(keys.dishRatings, {}),
+          activeTab: localStorage.getItem(keys.activeTab) || "planner",
+          activeBaseTab: localStorage.getItem(keys.activeBaseTab) || "base-menu",
+        };
+      }
+
+      function countPlans(weeklyPlans) {
+        return Object.values(weeklyPlans || {}).reduce((total, plans) => total + (plans || []).length, 0);
+      }
+
+      function countRatings(ratings) {
+        return Object.keys(ratings || {}).length;
+      }
+
+      function renderSummary() {
+        const payload = buildPayload();
+        statusEl.className = "status";
+        statusEl.textContent = [
+          `检测到本周/历史菜单：${countPlans(payload.weeklyPlans)} 套`,
+          `检测到菜品评分：${countRatings(payload.dishRatings)} 个`,
+          `检测到类别数据：${payload.categoryData ? "有" : "无"}`,
+        ].join("\n");
+      }
+
+      async function migrate() {
+        const roomId = roomEl.value.trim() || "zwcsm";
+        const payload = buildPayload();
+        buttonEl.disabled = true;
+        statusEl.className = "status";
+        statusEl.textContent = "正在上传到新站云端...";
+        try {
+          const response = await fetch("https://zwcsm.vercel.app/api/sync", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              roomId,
+              data: payload,
+            }),
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.error || response.statusText);
+          statusEl.className = "status ok";
+          statusEl.textContent = `迁移成功。\n房间号：${roomId}\n现在打开 https://zwcsm.vercel.app/index.html ，同步页填同一个房间号并从云端拉取。`;
+        } catch (error) {
+          statusEl.className = "status danger";
+          statusEl.textContent = `迁移失败：${error.message}`;
+        } finally {
+          buttonEl.disabled = false;
+        }
+      }
+
+      renderSummary();
+      buttonEl.addEventListener("click", migrate);
+    </script>
+  </body>
+</html>
