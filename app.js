@@ -458,7 +458,7 @@ function startSupabaseAutoSync() {
   if (!isSupabaseAutoSyncEnabled()) return;
   if (isSupabaseAutoSyncRunning) return;
   isSupabaseAutoSyncRunning = true;
-  if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.textContent = "关闭自动同步";
+  if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.textContent = "暂停同步";
   pullSupabaseState({ silent: true })
     .catch((error) => {
       setSyncStatus(`自动拉取失败：${error.message}`, "danger");
@@ -471,14 +471,14 @@ function startSupabaseAutoSync() {
       setSyncStatus(`自动拉取失败：${error.message}`, "danger");
     });
   }, 10000);
-  setSyncStatus(`已开启云端自动同步：${getSupabaseRoom()}`, "ok");
+  setSyncStatus(`接口同步中：房间「${getSupabaseRoom()}」，修改会自动保存。`, "ok");
 }
 
 function stopSupabaseAutoSync() {
   clearInterval(supabaseAutoTimer);
   supabaseAutoTimer = null;
   isSupabaseAutoSyncRunning = false;
-  if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.textContent = "开启自动同步";
+  if (elements.supabaseAutoToggle) elements.supabaseAutoToggle.textContent = "开启同步";
 }
 
 function toggleSupabaseAutoSync() {
@@ -489,7 +489,7 @@ function toggleSupabaseAutoSync() {
     startSupabaseAutoSync();
   } else {
     stopSupabaseAutoSync();
-    setSyncStatus("已关闭云端自动同步。", "warning");
+    setSyncStatus("已暂停接口自动同步。", "warning");
   }
 }
 
@@ -3090,11 +3090,11 @@ if (elements.cloudToken) elements.cloudToken.value = "";
 if (elements.cloudSyncToggle) elements.cloudSyncToggle.textContent = initialCloudConfig.autoSync ? "关闭自动同步" : "开启自动同步";
 if (elements.supabaseRoom) elements.supabaseRoom.value = localStorage.getItem(supabaseRoomKey) || "zwcsm";
 if (elements.supabaseAutoToggle) {
-  elements.supabaseAutoToggle.textContent = isSupabaseAutoSyncEnabled() ? "关闭自动同步" : "开启自动同步";
+  elements.supabaseAutoToggle.textContent = isSupabaseAutoSyncEnabled() ? "暂停同步" : "开启同步";
 }
 if (elements.backfillDatetime) elements.backfillDatetime.value = formatDateTimeLocal();
 if (elements.backfillPeople) elements.backfillPeople.value = elements.peopleCount.value || "4";
-setSyncStatus("正在从云端拉取最新数据。");
+setSyncStatus("正在通过接口读取最新数据。");
 normalizeInputs();
 renderPlan();
 renderPlanSearchResults();
