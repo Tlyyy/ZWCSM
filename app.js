@@ -392,7 +392,7 @@ async function pullSupabaseState({ silent = false } = {}) {
   });
 
   if (!result?.found) {
-    if (!silent) setSyncStatus(`云端还没有房间「${roomId}」的数据，先上传一次。`, "warning");
+    if (!silent) setSyncStatus("云端还没有数据，修改后会自动保存。", "warning");
     return false;
   }
 
@@ -405,8 +405,7 @@ async function pullSupabaseState({ silent = false } = {}) {
   }
 
   if (!silent) {
-    const updatedAt = result.updatedAt ? new Date(result.updatedAt).toLocaleString("zh-CN") : "未知时间";
-    setSyncStatus(`已拉取房间「${roomId}」的数据（${updatedAt}）。`, "ok");
+    setSyncStatus("已读取云端最新数据。", "ok");
   }
   return true;
 }
@@ -414,6 +413,7 @@ async function pullSupabaseState({ silent = false } = {}) {
 async function pushSupabaseState({ silent = false } = {}) {
   saveSupabaseRoom();
   const roomId = getSupabaseRoom();
+  setSyncStatus("保存中...", "warning");
   await callSyncApi({
     method: "PUT",
     body: JSON.stringify({
@@ -422,7 +422,7 @@ async function pushSupabaseState({ silent = false } = {}) {
     }),
   });
 
-  if (!silent) setSyncStatus(`已上传到房间「${roomId}」。`, "ok");
+  setSyncStatus("已保存到云端。", "ok");
   return true;
 }
 
@@ -432,7 +432,7 @@ function scheduleSupabaseSync() {
   supabaseDebounceTimer = setTimeout(async () => {
     try {
       await pushSupabaseState({ silent: true });
-      setSyncStatus("已自动保存到统一数据源。", "ok");
+      setSyncStatus("已自动保存。", "ok");
     } catch (error) {
       setSyncStatus(`云端自动同步失败：${error.message}`, "danger");
       console.error("Supabase auto sync failed:", error);
@@ -470,7 +470,7 @@ function startSupabaseAutoSync() {
       setSyncStatus(`自动拉取失败：${error.message}`, "danger");
     });
   }, 10000);
-  setSyncStatus("接口同步中，修改会自动保存。", "ok");
+  setSyncStatus("云端自动同步已开启。", "ok");
 }
 
 function stopSupabaseAutoSync() {
@@ -3147,7 +3147,7 @@ function bindEvents() {
   if (elements.supabaseRoom) {
     elements.supabaseRoom.addEventListener("change", () => {
       saveSupabaseRoom();
-      setSyncStatus("已连接统一数据源。", "ok");
+      setSyncStatus("云端自动同步已开启。", "ok");
     });
   }
   if (elements.supabasePull) elements.supabasePull.addEventListener("click", () => syncSupabaseNow("pull"));
@@ -3170,12 +3170,13 @@ if (elements.cloudPath) elements.cloudPath.value = initialCloudConfig.path || "d
 if (elements.cloudToken) elements.cloudToken.value = "";
 if (elements.cloudSyncToggle) elements.cloudSyncToggle.textContent = initialCloudConfig.autoSync ? "关闭自动同步" : "开启自动同步";
 if (elements.supabaseRoom) elements.supabaseRoom.value = defaultSyncRoom;
+setSupabaseAutoSyncEnabled(true);
 if (elements.supabaseAutoToggle) {
   elements.supabaseAutoToggle.textContent = isSupabaseAutoSyncEnabled() ? "暂停同步" : "开启同步";
 }
 if (elements.backfillDatetime) elements.backfillDatetime.value = formatDateTimeLocal();
 if (elements.backfillPeople) elements.backfillPeople.value = elements.peopleCount.value || "4";
-setSyncStatus("正在通过接口读取最新数据。");
+setSyncStatus("正在读取云端数据。");
 normalizeInputs();
 renderPlan();
 renderPlanSearchResults();

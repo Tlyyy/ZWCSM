@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>中午吃什么</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=20260617-weekly-feedback" />
+    <link rel="stylesheet" href="./styles.css?v=20260617-auto-sync-ui" />
   </head>
   <body>
     <main class="app-shell">
@@ -16,6 +16,7 @@
           <h1 id="page-title">这顿怎么点</h1>
           <p class="subtitle">按人数、预算、餐具费和折扣，自动配一桌。</p>
         </div>
+        <p id="sync-status" class="sync-status hero-sync-status">正在读取云端数据</p>
       </section>
 
       <nav class="app-tabs" aria-label="功能页签">
@@ -23,7 +24,6 @@
         <button class="tab-button" type="button" data-tab="weekly">本周菜单</button>
         <button class="tab-button" type="button" data-tab="calendar">历史</button>
         <button class="tab-button" type="button" data-tab="base">基础资料</button>
-        <button class="tab-button" type="button" data-tab="sync">同步</button>
       </nav>
 
       <section class="tab-panel is-active" data-tab-panel="planner" aria-label="点菜">
@@ -305,25 +305,8 @@
         </article>
       </section>
 
-      <section class="sync-board tab-panel" data-tab-panel="sync" aria-label="数据同步">
-        <article class="sync-card">
-          <div class="section-title">
-            <div>
-              <h2>跨设备同步</h2>
-              <p class="section-subtitle">所有设备使用同一份云端数据，页面会自动读取并保存到接口。</p>
-            </div>
-            <p id="sync-status" class="sync-status">正在连接云端同步。</p>
-          </div>
-          <div class="sync-code-panel">
-            <p class="sync-tip">已接入统一数据源，菜单、评分和基础资料会自动同步。</p>
-            <div class="sync-code-actions">
-              <button class="secondary-action" id="supabase-auto-toggle" type="button">开启同步</button>
-            </div>
-          </div>
-        </article>
-      </section>
     </main>
 
-    <script src="./app.js?v=20260617-weekly-feedback"></script>
+    <script src="./app.js?v=20260617-auto-sync-ui"></script>
   </body>
 </html>
