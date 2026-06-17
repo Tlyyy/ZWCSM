@@ -1260,7 +1260,7 @@ textarea:focus {
 
 .recent-card {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
   height: 100%;
   border-top: 4px solid var(--brand);
@@ -1275,6 +1275,8 @@ textarea:focus {
   overflow: auto;
   min-height: 0;
   list-style: none;
+  position: relative;
+  z-index: 1;
 }
 
 .weekly-backfill {
@@ -1285,6 +1287,8 @@ textarea:focus {
   border: 1px solid #e4eaf2;
   border-radius: 10px;
   background: #fbfcfd;
+  position: relative;
+  z-index: 2;
 }
 
 .weekly-backfill-head {

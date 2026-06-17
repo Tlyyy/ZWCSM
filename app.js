@@ -2363,8 +2363,22 @@ function getRatingText(dishId) {
   return rating ? `评分 ${rating}分` : "未评分";
 }
 
+function showButtonFeedback(button, text = "已保存") {
+  if (!button) return;
+  const original = button.textContent;
+  button.textContent = text;
+  button.disabled = true;
+  setTimeout(() => {
+    button.textContent = original;
+    button.disabled = false;
+  }, 1200);
+}
+
 function saveCurrentPlanToWeek() {
-  if (currentPlan.length === 0) return;
+  if (currentPlan.length === 0) {
+    alert("先生成一套菜单，再保存到本周。");
+    return;
+  }
   const settings = getSettings();
   const summary = calculatePlanSummary(currentPlan, settings);
   const snapshot = {
@@ -2386,6 +2400,12 @@ function saveCurrentPlanToWeek() {
   renderWeeklyPlans();
   renderCalendar();
   renderCandidates();
+  showButtonFeedback(elements.saveWeeklyPlan, "已保存");
+  if (elements.budgetStatus) {
+    elements.budgetStatus.textContent = "已保存到本周";
+    elements.budgetStatus.classList.remove("over", "neutral");
+    elements.budgetStatus.classList.add("ok");
+  }
 }
 
 function getBackfillDishes() {
@@ -2532,6 +2552,7 @@ function saveBackfillPlan() {
   renderWeeklyPlans();
   renderCalendar();
   renderCandidates();
+  showButtonFeedback(elements.saveBackfill, "已补录");
 }
 
 function renderWeeklyPlans() {
