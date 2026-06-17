@@ -344,8 +344,6 @@ function buildSyncPayload() {
     categoryData: readJsonStorage(categoryDataKey, null),
     weeklyPlans: readJsonStorage(weeklyPlansKey, {}),
     dishRatings: readJsonStorage(dishRatingsKey, {}),
-    activeTab: localStorage.getItem(activeTabKey) || "planner",
-    activeBaseTab: localStorage.getItem(activeBaseTabKey) || "base-menu",
   };
 }
 
@@ -667,8 +665,6 @@ function applyCloudPayload(payload) {
   if (categoryData !== null) localStorage.setItem(categoryDataKey, JSON.stringify(categoryData));
   if (weeklyPlans) localStorage.setItem(weeklyPlansKey, JSON.stringify(weeklyPlans));
   if (dishRatings) localStorage.setItem(dishRatingsKey, JSON.stringify(dishRatings));
-  if (payload.activeTab) localStorage.setItem(activeTabKey, payload.activeTab);
-  if (payload.activeBaseTab) localStorage.setItem(activeBaseTabKey, payload.activeBaseTab);
   if (payload.categoryData?.version) {
     localStorage.setItem(`${categoryDataKey}:version`, String(payload.categoryData.version));
   } else {
