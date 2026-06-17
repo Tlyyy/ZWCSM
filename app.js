@@ -146,6 +146,7 @@ const elements = {
   excludedTags: document.querySelector("#excluded-tags"),
   generateButton: document.querySelector("#generate-button"),
   saveWeeklyPlan: document.querySelector("#save-weekly-plan"),
+  copyMenu: document.querySelector("#copy-menu"),
   clearPlan: document.querySelector("#clear-plan"),
   clearWeekly: document.querySelector("#clear-weekly"),
   backfillSearch: document.querySelector("#backfill-search"),
@@ -2222,6 +2223,37 @@ function copyReviewText() {
   }
 }
 
+function getMenuCopyText(plan = currentPlan) {
+  return sortPlanDishes(plan)
+    .map((dish, index) => `${index + 1}${dish.name}`)
+    .join("\n");
+}
+
+function copyMenuText() {
+  const text = getMenuCopyText();
+  if (!text) {
+    alert("先生成一套菜单，再复制菜单。");
+    return;
+  }
+
+  const done = () => {
+    if (!elements.copyMenu) return;
+    const original = elements.copyMenu.textContent;
+    elements.copyMenu.textContent = "已复制";
+    setTimeout(() => {
+      elements.copyMenu.textContent = original;
+    }, 1200);
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      window.prompt("复制这份菜单：", text);
+    });
+  } else {
+    window.prompt("复制这份菜单：", text);
+  }
+}
+
 function renderPlan() {
   if (currentPlan.length === 0) {
     elements.planList.innerHTML = `
@@ -2951,6 +2983,7 @@ function bindEvents() {
 
   elements.generateButton.addEventListener("click", generateMealPlan);
   elements.saveWeeklyPlan.addEventListener("click", saveCurrentPlanToWeek);
+  elements.copyMenu?.addEventListener("click", copyMenuText);
   elements.clearPlan.addEventListener("click", () => {
     currentPlan = [];
     fixedDishIds = new Set();

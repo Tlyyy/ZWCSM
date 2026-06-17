@@ -837,11 +837,12 @@ textarea:focus {
 
 .actions {
   display: grid;
-  grid-template-columns: 1.35fr 1fr 0.8fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
 .actions .primary-action {
+  grid-column: 1 / -1;
   min-height: 36px;
 }
 
