@@ -1222,6 +1222,18 @@ textarea:focus {
   gap: 5px;
 }
 
+.dish-maintenance-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dish-maintenance-actions .mini-action {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 0.86rem;
+}
+
 .dish-category-editor {
   display: grid;
   gap: 6px;

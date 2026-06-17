@@ -870,10 +870,20 @@ function hydrateCategoryData(force = false) {
   const defaultList = uniqueCategoriesFrom([...getDefaultCategories(), DEFAULT_CATEGORY]);
   const storedCatalog = uniqueCategoriesFrom(Array.isArray(stored?.categories) ? stored.categories : []);
   const storedDishCategories = stored?.dishCategories && typeof stored.dishCategories === "object" ? stored.dishCategories : {};
+  const storedDishNames = stored?.dishNames && typeof stored.dishNames === "object" ? stored.dishNames : {};
+  const deletedDishIds = new Set(Array.isArray(stored?.deletedDishIds) ? stored.deletedDishIds.map(Number) : []);
   const catalog = uniqueCategoriesFrom([...storedCatalog, ...defaultList]);
   const dishById = new Map(baseDishes.map((dish) => [dish.id, { ...dish, categories: [dish.category], category: dish.category }]));
 
+  deletedDishIds.forEach((id) => dishById.delete(id));
+
   if (hasStored) {
+    Object.entries(storedDishNames).forEach(([id, name]) => {
+      const dish = dishById.get(Number(id));
+      const normalizedName = String(name || "").trim();
+      if (dish && normalizedName) dish.name = normalizedName;
+    });
+
     Object.entries(storedDishCategories).forEach(([id, categoryConfig]) => {
       const dish = dishById.get(Number(id));
       if (!dish) return;
@@ -900,10 +910,22 @@ function hydrateCategoryData(force = false) {
 }
 
 function persistCategoryData() {
+  const baseDishMap = new Map(baseDishes.map((dish) => [dish.id, dish]));
+  const dishIds = new Set(dishes.map((dish) => dish.id));
+  const dishNames = Object.fromEntries(
+    dishes
+      .filter((dish) => baseDishMap.get(dish.id)?.name !== dish.name)
+      .map((dish) => [dish.id, dish.name]),
+  );
+  const deletedDishIds = baseDishes
+    .filter((dish) => !dishIds.has(dish.id))
+    .map((dish) => dish.id);
   const payload = {
     version: categoryDataVersion,
     categories: categoryCatalog,
     dishCategories: Object.fromEntries(dishes.map((dish) => [dish.id, dish.categories || [dish.category]])),
+    dishNames,
+    deletedDishIds,
   };
   localStorage.setItem(categoryDataKey, JSON.stringify(payload));
   localStorage.setItem(`${categoryDataKey}:version`, String(categoryDataVersion));
@@ -941,6 +963,54 @@ function setDishPrimaryCategory(dishId, categoryName) {
   populateCategories();
   renderPlan();
   renderCandidates();
+  renderRatingMaintenance();
+  renderWeeklyPlans();
+  renderCalendar();
+}
+
+function renameDish(dishId) {
+  const dish = dishes.find((item) => item.id === dishId);
+  if (!dish) return;
+  const nextName = window.prompt("修改菜名：", dish.name);
+  if (nextName === null) return;
+  const normalizedName = nextName.trim();
+  if (!normalizedName) {
+    alert("菜名不能为空。");
+    return;
+  }
+  const duplicate = dishes.some((item) => item.id !== dishId && item.name === normalizedName);
+  if (duplicate && !confirm(`已经有「${normalizedName}」了，仍然继续改名吗？`)) return;
+
+  dish.name = normalizedName;
+  currentPlan = currentPlan.map((item) => (item.id === dishId ? { ...item, name: normalizedName } : item));
+  persistCategoryData();
+  renderPlan();
+  renderCandidates();
+  renderPlanSearchResults();
+  renderBackfillSearchResults();
+  renderBackfillDraft();
+  renderRatingMaintenance();
+  renderWeeklyPlans();
+  renderCalendar();
+}
+
+function deleteDish(dishId) {
+  const dish = dishes.find((item) => item.id === dishId);
+  if (!dish) return;
+  if (!confirm(`确定删除「${dish.name}」吗？\n\n删除后不会再出现在菜单维护、搜索加入和自动配菜里。`)) return;
+
+  dishes = dishes.filter((item) => item.id !== dishId);
+  currentPlan = currentPlan.filter((item) => item.id !== dishId);
+  fixedDishIds.delete(dishId);
+  backfillDishIds.delete(dishId);
+  persistCategoryData();
+  populateCategories();
+  renderCategoryBoard();
+  renderPlan();
+  renderCandidates();
+  renderPlanSearchResults();
+  renderBackfillSearchResults();
+  renderBackfillDraft();
   renderRatingMaintenance();
   renderWeeklyPlans();
   renderCalendar();
@@ -2739,13 +2809,17 @@ function renderCandidates() {
         return `
         <div class="dish-chip ${state.eatenThisWeek || state.lowRated ? "is-muted" : ""}">
           <div class="dish-chip-head">
-            <strong>${dish.name}</strong>
+            <strong>${escapeHtml(dish.name)}</strong>
             <b>${dish.price} 元</b>
           </div>
-          <span class="dish-meta">${getDishLabel(dish)}</span>
+          <span class="dish-meta">${escapeHtml(getDishLabel(dish))}</span>
           ${getDishCategorySelect(dish, "inline-category-select", "data-menu-category-id")}
           <div class="dish-chip-footer">
             <div class="dish-status">${statusPills}</div>
+            <div class="dish-maintenance-actions">
+              <button class="mini-action" type="button" data-rename-dish-id="${dish.id}">改名</button>
+              <button class="mini-action danger-action" type="button" data-delete-dish-id="${dish.id}">删除</button>
+            </div>
           </div>
         </div>
       `;
@@ -3120,6 +3194,18 @@ function bindEvents() {
   });
 
   elements.dishGrid.addEventListener("click", (event) => {
+    const renameButton = event.target.closest("[data-rename-dish-id]");
+    if (renameButton) {
+      renameDish(Number(renameButton.dataset.renameDishId));
+      return;
+    }
+
+    const deleteButton = event.target.closest("[data-delete-dish-id]");
+    if (deleteButton) {
+      deleteDish(Number(deleteButton.dataset.deleteDishId));
+      return;
+    }
+
     const button = event.target.closest("[data-add-id]");
     if (!button) return;
     addDishToPlan(Number(button.dataset.addId));
