@@ -358,7 +358,7 @@ function saveSupabaseRoom() {
 }
 
 function isSupabaseAutoSyncEnabled() {
-  return localStorage.getItem(supabaseAutoSyncKey) === "true";
+  return localStorage.getItem(supabaseAutoSyncKey) !== "false";
 }
 
 function setSupabaseAutoSyncEnabled(enabled) {
@@ -439,7 +439,7 @@ function scheduleSupabaseSync() {
       setSyncStatus(`云端自动同步失败：${error.message}`, "danger");
       console.error("Supabase auto sync failed:", error);
     }
-  }, 1000);
+  }, 500);
 }
 
 async function syncSupabaseNow(action) {
@@ -467,7 +467,7 @@ function startSupabaseAutoSync() {
     pullSupabaseState({ silent: true }).catch((error) => {
       setSyncStatus(`自动拉取失败：${error.message}`, "danger");
     });
-  }, 30000);
+  }, 10000);
   setSyncStatus(`已开启云端自动同步：${getSupabaseRoom()}`, "ok");
 }
 
@@ -3093,7 +3093,7 @@ if (elements.supabaseAutoToggle) {
 }
 if (elements.backfillDatetime) elements.backfillDatetime.value = formatDateTimeLocal();
 if (elements.backfillPeople) elements.backfillPeople.value = elements.peopleCount.value || "4";
-setSyncStatus("当前数据默认保存在当前浏览器，可用房间号跨设备同步。");
+setSyncStatus("正在从云端拉取最新数据。");
 normalizeInputs();
 renderPlan();
 renderPlanSearchResults();
@@ -3110,6 +3110,4 @@ if (initialCloudConfig.autoSync) {
   startAutoSync();
 }
 
-if (isSupabaseAutoSyncEnabled()) {
-  startSupabaseAutoSync();
-}
+startSupabaseAutoSync();
