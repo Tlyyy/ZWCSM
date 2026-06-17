@@ -83,11 +83,7 @@
     <main>
       <h1>旧站数据迁移</h1>
       <p>这个页面必须在旧地址打开，才能读取旧地址里保存的本地数据。</p>
-      <p>点击迁移后，会把旧站的评分、本周菜单、类别数据上传到 Vercel 云端接口。</p>
-      <label>
-        同步房间号
-        <input id="room" value="zwcsm" autocomplete="off" />
-      </label>
+      <p>点击迁移后，会把旧站的评分、本周菜单、类别数据上传到新站统一数据源。</p>
       <button id="migrate" type="button">迁移到新站云端</button>
       <div id="status" class="status">正在检查旧站本地数据...</div>
     </main>
@@ -102,7 +98,7 @@
       };
       const statusEl = document.querySelector("#status");
       const buttonEl = document.querySelector("#migrate");
-      const roomEl = document.querySelector("#room");
+      const roomId = "zwcsm";
 
       function readJson(key, fallback) {
         try {
@@ -142,7 +138,6 @@
       }
 
       async function migrate() {
-        const roomId = roomEl.value.trim() || "zwcsm";
         const payload = buildPayload();
         buttonEl.disabled = true;
         statusEl.className = "status";
@@ -161,7 +156,7 @@
           const result = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(result.error || response.statusText);
           statusEl.className = "status ok";
-          statusEl.textContent = `迁移成功。\n房间号：${roomId}\n现在打开 https://zwcsm.vercel.app/index.html ，同步页填同一个房间号并从云端拉取。`;
+          statusEl.textContent = "迁移成功。\n现在打开 https://zwcsm.vercel.app/index.html ，数据会自动从统一数据源读取。";
         } catch (error) {
           statusEl.className = "status danger";
           statusEl.textContent = `迁移失败：${error.message}`;

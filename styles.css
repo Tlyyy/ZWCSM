@@ -259,7 +259,7 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(320px, 1fr) 180px;
   gap: 12px;
-  align-items: end;
+  align-items: center;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
