@@ -1604,14 +1604,32 @@ function pickForSlot(candidates, plan, settings, slot, strict = true, options = 
   return options.weighted ? pickWeighted(scoredDishes) : scoredDishes[0]?.dish;
 }
 
+function getBudgetBand(settings) {
+  const targetFinal = Math.max(0, settings.totalBudget);
+  const lowerRatio = settings.mealMode === "budget" ? 0.82 : 0.95;
+  const upperRatio = settings.mealMode === "budget" ? 0.95 : 1.05;
+  const tablewareTotal = settings.peopleCount * settings.tablewareFee;
+  const toDishSubtotal = (finalTotal) => Math.max(0, finalTotal / settings.discount - tablewareTotal);
+
+  return {
+    lowerFinal: targetFinal * lowerRatio,
+    upperFinal: targetFinal * upperRatio,
+    centerFinal: targetFinal * ((lowerRatio + upperRatio) / 2),
+    lowerSubtotal: toDishSubtotal(targetFinal * lowerRatio),
+    upperSubtotal: toDishSubtotal(targetFinal * upperRatio),
+    centerSubtotal: toDishSubtotal(targetFinal * ((lowerRatio + upperRatio) / 2)),
+  };
+}
+
 function getBudgetLimit(settings) {
-  const ratio = settings.mealMode === "budget" ? 0.95 : 1.05;
-  return (settings.totalBudget * ratio) / settings.discount - settings.peopleCount * settings.tablewareFee;
+  return getBudgetBand(settings).upperSubtotal;
 }
 
 function getTargetBudgetSubtotal(settings) {
-  const ratio = settings.mealMode === "budget" ? 0.86 : settings.mealMode === "treat" ? 1.02 : 1;
-  return (settings.totalBudget * ratio) / settings.discount - settings.peopleCount * settings.tablewareFee;
+  const band = getBudgetBand(settings);
+  if (settings.mealMode === "budget") return band.lowerSubtotal;
+  if (settings.mealMode === "treat") return band.upperSubtotal * 0.98;
+  return band.centerSubtotal;
 }
 
 function getDishSubtotal(plan) {
@@ -1681,12 +1699,13 @@ function getSlotForDish(dish) {
 
 function improveBudgetUsage(plan, candidates, settings) {
   let nextPlan = [...plan];
-  const budgetLimit = getBudgetLimit(settings);
+  const budgetBand = getBudgetBand(settings);
+  const budgetLimit = budgetBand.upperSubtotal;
   const targetSubtotal = getTargetBudgetSubtotal(settings);
   const targetCount = Math.max(nextPlan.length, Math.min(getTargetDishCount(settings), candidates.length));
   let guard = 0;
 
-  while (nextPlan.length < targetCount && getDishSubtotal(nextPlan) < targetSubtotal * 0.92) {
+  while (nextPlan.length < targetCount && getDishSubtotal(nextPlan) < budgetBand.lowerSubtotal) {
     const currentSubtotal = getDishSubtotal(nextPlan);
     const missingSlots = getRemainingMealSlots(settings, nextPlan);
     const preferredSlot =
@@ -1698,17 +1717,22 @@ function improveBudgetUsage(plan, candidates, settings) {
       .filter((dish) => currentSubtotal + dish.price <= budgetLimit)
       .map((dish) => {
         const nextSubtotal = currentSubtotal + dish.price;
-        const gap = Math.abs(targetSubtotal - nextSubtotal);
+        const gap =
+          nextSubtotal < budgetBand.lowerSubtotal
+            ? budgetBand.lowerSubtotal - nextSubtotal
+            : nextSubtotal > budgetBand.upperSubtotal
+              ? nextSubtotal - budgetBand.upperSubtotal
+              : Math.abs(targetSubtotal - nextSubtotal) * 0.18;
         const roleBonus = getSlotPredicate(preferredSlot)(dish) ? 22 : 0;
         return { dish, score: -gap + roleBonus - (isOrganDish(dish) ? 16 : 0) - (isHeavyDish(dish) ? 12 : 0) };
       })
       .sort((a, b) => b.score - a.score);
 
-    if (!addable[0] || addable[0].score < -targetSubtotal * 0.18) break;
+    if (!addable[0] || addable[0].score < -targetSubtotal * 0.14) break;
     addDish(nextPlan, addable[0].dish);
   }
 
-  while (getDishSubtotal(nextPlan) < targetSubtotal && guard < 12) {
+  while (getDishSubtotal(nextPlan) < budgetBand.lowerSubtotal && guard < 8) {
     guard += 1;
     const currentSubtotal = getDishSubtotal(nextPlan);
     let bestMove = null;
@@ -1723,8 +1747,8 @@ function improveBudgetUsage(plan, candidates, settings) {
         if (newSubtotal > budgetLimit) return;
         if (newSubtotal <= currentSubtotal) return;
 
-        const oldGap = Math.abs(targetSubtotal - currentSubtotal);
-        const newGap = Math.abs(targetSubtotal - newSubtotal);
+        const oldGap = Math.max(0, budgetBand.lowerSubtotal - currentSubtotal);
+        const newGap = Math.max(0, budgetBand.lowerSubtotal - newSubtotal);
         const slotBonus = getSlotPredicate(slot)(newDish) ? 10 : 0;
         const score = oldGap - newGap + slotBonus - (isHeavyDish(newDish) ? 8 : 0) - (isOrganDish(newDish) ? 10 : 0);
 
@@ -1777,8 +1801,8 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
 
   const targetCount = Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
   const summary = calculatePlanSummary(plan, settings);
-  const budgetRatio = settings.totalBudget > 0 ? summary.budgetDiff / settings.totalBudget : 0;
-  const absoluteBudgetRatio = Math.abs(budgetRatio);
+  const budgetBand = getBudgetBand(settings);
+  const budgetBase = Math.max(settings.totalBudget, 1);
   const vegetableCount = plan.filter(isVegetable).length;
   const soupCount = plan.filter(isSoup).length;
   const proteinCount = plan.filter(isProteinDish).length;
@@ -1796,15 +1820,20 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   const shouldHaveSoup = soupAllowed && targetCount >= 3;
   const shouldHaveBigDish =
     bigDishAllowed && settings.mealMode !== "budget" && (settings.totalBudget >= 100 || settings.mealMode === "treat") && targetCount >= 4;
+  const ratedValues = plan.map((dish) => getDishRating(dish.id)).filter(Boolean);
+  const averageRating = ratedValues.length > 0 ? ratedValues.reduce((sum, rating) => sum + rating, 0) / ratedValues.length : 0;
 
   let score = 1000;
 
-  if (absoluteBudgetRatio <= 0.05) {
-    score += 260 - absoluteBudgetRatio * 1200;
-  } else if (budgetRatio > 0) {
-    score -= Math.min(260, absoluteBudgetRatio * 520);
+  if (summary.finalTotal >= budgetBand.lowerFinal && summary.finalTotal <= budgetBand.upperFinal) {
+    score += 220;
+    if (settings.mealMode === "normal") score += 28;
+  } else if (summary.finalTotal < budgetBand.lowerFinal) {
+    const lowRatio = (budgetBand.lowerFinal - summary.finalTotal) / budgetBase;
+    score -= 70 + lowRatio * 430;
   } else {
-    score -= 360 + Math.abs(budgetRatio) * 900;
+    const highRatio = (summary.finalTotal - budgetBand.upperFinal) / budgetBase;
+    score -= 430 + highRatio * 920;
   }
 
   score -= Math.abs(plan.length - targetCount) * 120;
@@ -1828,17 +1857,17 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   if (shouldHaveBigDish && bigDishCount === 0) score -= 62;
   if (!bigDishAllowed && bigDishCount > 0) score -= 600;
   if (bigDishCount > 1 && settings.peopleCount <= 4) score -= 76;
-  if (summary.finalTotal > settings.totalBudget * 1.05) score -= 700;
-  if (summary.finalTotal < settings.totalBudget * 0.9 && candidates.length > targetCount) {
-    score -= 120 + ((settings.totalBudget * 0.9 - summary.finalTotal) / settings.totalBudget) * 520;
+  if (summary.finalTotal > budgetBand.upperFinal) score -= 520;
+  if (summary.finalTotal < budgetBand.lowerFinal * 0.94 && candidates.length > targetCount) {
+    score -= 80 + ((budgetBand.lowerFinal * 0.94 - summary.finalTotal) / budgetBase) * 360;
   }
-  if (summary.finalTotal >= settings.totalBudget * 0.95 && summary.finalTotal <= settings.totalBudget * 1.02) score += 90;
   if (settings.mealMode === "budget" && summary.finalTotal <= settings.totalBudget * 0.9) score += 140;
   if (settings.mealMode === "budget" && summary.finalTotal > settings.totalBudget * 0.95) score -= 360;
   if (settings.mealMode === "treat" && summary.finalTotal >= settings.totalBudget * 0.9) score += 70;
   if (settings.mealMode === "light") score -= spicyCount * 45 + heavyCount * 35 + organCount * 35;
   if (settings.mealMode === "hearty" && proteinCount >= vegetableCount) score += 55;
   if (settings.mealMode === "treat" && bigDishCount > 0) score += 90;
+  if (averageRating > 0) score += (averageRating - 3) * 34 + Math.min(ratedValues.length, 3) * 12;
 
   plan.forEach((dish) => {
     if (isOrganDish(dish)) score -= 14;
@@ -1996,7 +2025,7 @@ function getRecommendationExplanation(plan = currentPlan, summary = calculatePla
   const fixedCount = plan.filter((dish) => fixedDishIds.has(dish.id)).length;
   const budgetText =
     Math.abs(summary.budgetDiff) <= settings.totalBudget * 0.05
-      ? `预算贴近，差 ${money(Math.abs(summary.budgetDiff))}`
+      ? `预算浮动内，差 ${money(Math.abs(summary.budgetDiff))}`
       : summary.budgetDiff > 0
         ? `预算内，剩 ${money(summary.budgetDiff)}`
         : `略超预算 ${money(Math.abs(summary.budgetDiff))}`;
