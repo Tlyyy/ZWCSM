@@ -871,6 +871,7 @@ function hydrateCategoryData(force = false) {
   const storedCatalog = uniqueCategoriesFrom(Array.isArray(stored?.categories) ? stored.categories : []);
   const storedDishCategories = stored?.dishCategories && typeof stored.dishCategories === "object" ? stored.dishCategories : {};
   const storedDishNames = stored?.dishNames && typeof stored.dishNames === "object" ? stored.dishNames : {};
+  const storedDishPrices = stored?.dishPrices && typeof stored.dishPrices === "object" ? stored.dishPrices : {};
   const deletedDishIds = new Set(Array.isArray(stored?.deletedDishIds) ? stored.deletedDishIds.map(Number) : []);
   const catalog = uniqueCategoriesFrom([...storedCatalog, ...defaultList]);
   const dishById = new Map(baseDishes.map((dish) => [dish.id, { ...dish, categories: [dish.category], category: dish.category }]));
@@ -882,6 +883,12 @@ function hydrateCategoryData(force = false) {
       const dish = dishById.get(Number(id));
       const normalizedName = String(name || "").trim();
       if (dish && normalizedName) dish.name = normalizedName;
+    });
+
+    Object.entries(storedDishPrices).forEach(([id, price]) => {
+      const dish = dishById.get(Number(id));
+      const normalizedPrice = Number(price);
+      if (dish && Number.isFinite(normalizedPrice) && normalizedPrice >= 0) dish.price = normalizedPrice;
     });
 
     Object.entries(storedDishCategories).forEach(([id, categoryConfig]) => {
@@ -917,6 +924,11 @@ function persistCategoryData() {
       .filter((dish) => baseDishMap.get(dish.id)?.name !== dish.name)
       .map((dish) => [dish.id, dish.name]),
   );
+  const dishPrices = Object.fromEntries(
+    dishes
+      .filter((dish) => Number(baseDishMap.get(dish.id)?.price) !== Number(dish.price))
+      .map((dish) => [dish.id, dish.price]),
+  );
   const deletedDishIds = baseDishes
     .filter((dish) => !dishIds.has(dish.id))
     .map((dish) => dish.id);
@@ -925,6 +937,7 @@ function persistCategoryData() {
     categories: categoryCatalog,
     dishCategories: Object.fromEntries(dishes.map((dish) => [dish.id, dish.categories || [dish.category]])),
     dishNames,
+    dishPrices,
     deletedDishIds,
   };
   localStorage.setItem(categoryDataKey, JSON.stringify(payload));
@@ -983,6 +996,30 @@ function renameDish(dishId) {
 
   dish.name = normalizedName;
   currentPlan = currentPlan.map((item) => (item.id === dishId ? { ...item, name: normalizedName } : item));
+  persistCategoryData();
+  renderPlan();
+  renderCandidates();
+  renderPlanSearchResults();
+  renderBackfillSearchResults();
+  renderBackfillDraft();
+  renderRatingMaintenance();
+  renderWeeklyPlans();
+  renderCalendar();
+}
+
+function updateDishPrice(dishId) {
+  const dish = dishes.find((item) => item.id === dishId);
+  if (!dish) return;
+  const nextPrice = window.prompt("修改价格：", String(dish.price));
+  if (nextPrice === null) return;
+  const normalizedPrice = Number(nextPrice.trim());
+  if (!Number.isFinite(normalizedPrice) || normalizedPrice < 0) {
+    alert("请输入有效价格。");
+    return;
+  }
+
+  dish.price = Math.round(normalizedPrice * 10) / 10;
+  currentPlan = currentPlan.map((item) => (item.id === dishId ? { ...item, price: dish.price } : item));
   persistCategoryData();
   renderPlan();
   renderCandidates();
@@ -2831,6 +2868,7 @@ function renderCandidates() {
             <div class="dish-status">${statusPills}</div>
             <div class="dish-maintenance-actions">
               <button class="mini-action" type="button" data-rename-dish-id="${dish.id}">改名</button>
+              <button class="mini-action" type="button" data-price-dish-id="${dish.id}">改价</button>
               <button class="mini-action danger-action" type="button" data-delete-dish-id="${dish.id}">删除</button>
             </div>
           </div>
@@ -3210,6 +3248,12 @@ function bindEvents() {
     const renameButton = event.target.closest("[data-rename-dish-id]");
     if (renameButton) {
       renameDish(Number(renameButton.dataset.renameDishId));
+      return;
+    }
+
+    const priceButton = event.target.closest("[data-price-dish-id]");
+    if (priceButton) {
+      updateDishPrice(Number(priceButton.dataset.priceDishId));
       return;
     }
 

@@ -1157,7 +1157,7 @@ textarea:focus {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 8px;
-  min-height: 206px;
+  min-height: 214px;
   padding: 12px;
   background: #fff;
   overflow: hidden;
@@ -1210,7 +1210,7 @@ textarea:focus {
 }
 
 .readonly-rating {
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
   gap: 6px;
   width: max-content;
@@ -1226,7 +1226,7 @@ textarea:focus {
 }
 
 .readonly-stars {
-  display: inline-flex;
+  display: inline-flex !important;
   gap: 1px;
 }
 
@@ -1255,7 +1255,7 @@ textarea:focus {
 
 .dish-maintenance-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
