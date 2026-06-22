@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>中午吃什么</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=20260618-price-edit" />
+    <link rel="stylesheet" href="./styles.css?v=20260622-eaten-weeks" />
   </head>
   <body>
     <main class="app-shell">
@@ -74,6 +74,16 @@
                 <option value="light">清淡点</option>
                 <option value="hearty">下饭点</option>
                 <option value="treat">吃好点</option>
+              </select>
+            </label>
+            <label>
+              <span>已吃排除</span>
+              <select id="eaten-week-scope">
+                <option value="0">不排除</option>
+                <option value="1" selected>只排本周</option>
+                <option value="2">最近2周</option>
+                <option value="3">最近3周</option>
+                <option value="4">最近4周</option>
               </select>
             </label>
           </div>
@@ -307,6 +317,6 @@
 
     </main>
 
-    <script src="./app.js?v=20260618-price-edit"></script>
+    <script src="./app.js?v=20260622-eaten-weeks"></script>
   </body>
 </html>

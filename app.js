@@ -142,6 +142,7 @@ const elements = {
   category: document.querySelector("#category"),
   minRating: document.querySelector("#min-rating"),
   mealMode: document.querySelector("#meal-mode"),
+  eatenWeekScope: document.querySelector("#eaten-week-scope"),
   menuSearch: document.querySelector("#menu-search"),
   excludedTags: document.querySelector("#excluded-tags"),
   generateButton: document.querySelector("#generate-button"),
@@ -292,6 +293,7 @@ function getSettings() {
     category: elements.category.value,
     minRating: minRatingValue === "none" ? "none" : clampNumber(minRatingValue, 1, 5, 3),
     mealMode: elements.mealMode?.value || "normal",
+    eatenWeekScope: clampNumber(elements.eatenWeekScope?.value, 0, 4, 1),
     searchTerm: elements.menuSearch.value.trim().toLowerCase(),
     excludedTags: getExcludedTags(),
   };
@@ -1128,6 +1130,15 @@ function getCurrentWeekPlans() {
   return getAllWeeklyPlans()[getWeekKey()] || [];
 }
 
+function getRecentWeekKeys(weekCount = 1) {
+  const count = clampNumber(weekCount, 0, 4, 1);
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - index * 7);
+    return getWeekKey(date);
+  });
+}
+
 function getAllSavedPlans() {
   return Object.values(getAllWeeklyPlans())
     .flat()
@@ -1226,6 +1237,16 @@ function setDishRating(dishId, rating) {
 
 function getEatenDishIdsForCurrentWeek() {
   return new Set(getCurrentWeekPlans().flatMap((plan) => plan.dishes.map((dish) => dish.id)));
+}
+
+function getEatenDishIdsForRecentWeeks(weekCount = 1) {
+  const weekKeys = new Set(getRecentWeekKeys(weekCount));
+  const plansByWeek = getAllWeeklyPlans();
+  return new Set(
+    Object.entries(plansByWeek)
+      .filter(([weekKey]) => weekKeys.has(weekKey))
+      .flatMap(([, plans]) => (plans || []).flatMap((plan) => plan.dishes.map((dish) => dish.id))),
+  );
 }
 
 function getCategories() {
@@ -1425,7 +1446,7 @@ function getDishTags(dish) {
 
 function getDishFilterState(dish, settings = getSettings()) {
   const dishTags = getDishTags(dish);
-  const eatenIds = getEatenDishIdsForCurrentWeek();
+  const eatenIds = getEatenDishIdsForRecentWeeks(settings.eatenWeekScope);
   const rating = getDishRating(dish.id);
   const inCategory = settings.category === "all" || hasDishCategory(dish, settings.category);
   const notExcluded = !dishTags.some((tag) => settings.excludedTags.includes(tag));
@@ -2141,6 +2162,7 @@ function getRecommendationExplanation(plan = currentPlan, summary = calculatePla
 
   if (fixedCount > 0) parts.push(`保留 ${fixedCount} 道固定菜`);
   if (settings.excludedTags.length > 0) parts.push(`已避开 ${settings.excludedTags.join("、")}`);
+  if (settings.eatenWeekScope > 0) parts.push(`排除最近 ${settings.eatenWeekScope} 周已吃`);
   if (settings.minRating !== "none") parts.push(`过滤低于 ${settings.minRating} 分`);
 
   return parts.join(" · ");
@@ -3017,6 +3039,7 @@ function normalizeInputs() {
   elements.dishCount.value = settings.dishCountMode === "auto" ? "" : settings.dishCountMode;
   elements.minRating.value = settings.minRating === "none" ? "none" : String(settings.minRating);
   if (elements.mealMode) elements.mealMode.value = settings.mealMode;
+  if (elements.eatenWeekScope) elements.eatenWeekScope.value = String(settings.eatenWeekScope);
 }
 
 function handleSettingsChange() {
@@ -3209,7 +3232,7 @@ function bindEvents() {
   elements.planSearch.addEventListener("input", renderPlanSearchResults);
   elements.ratingSearch.addEventListener("input", renderRatingMaintenance);
 
-  [elements.category, elements.minRating, elements.mealMode].forEach(
+  [elements.category, elements.minRating, elements.mealMode, elements.eatenWeekScope].forEach(
     (element) => element.addEventListener("change", handleSettingsChange),
   );
   [elements.ratingCategory, elements.ratingStatus].forEach((element) => {
