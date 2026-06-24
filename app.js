@@ -61,7 +61,7 @@ const baseDishes = [
   { name: "手抓扇子骨", price: 55, category: "特色菜" },
   { name: "泡椒牛蛙", price: 55, category: "特色菜" },
   { name: "小炒黄牛肉", price: 42, category: "特色菜" },
-  { name: "猪蹄压黄豆", price: 48, category: "特色菜" },
+  { name: "猪蹄压黄豆", price: 45, category: "特色菜" },
   { name: "干锅黄金虾", price: 55, category: "特色菜" },
   { name: "莲花鸭血", price: 48, category: "特色菜" },
   { name: "水煮牛肉", price: 55, category: "特色菜" },
@@ -288,7 +288,7 @@ function getSettings() {
     peopleCount: clampNumber(elements.peopleCount.value, 1, 12, 4),
     totalBudget: clampNumber(elements.totalBudget.value, 10, 500, 100),
     tablewareFee: clampNumber(elements.tablewareFee.value, 0, 20, 2),
-    discount: clampNumber(elements.discount.value, 0.1, 1, 0.88),
+    discount: clampNumber(elements.discount.value, 0.1, 1, 0.9),
     dishCountMode: dishCountValue === "" ? "auto" : clampNumber(dishCountValue, 1, 10, 4),
     category: elements.category.value,
     minRating: minRatingValue === "none" ? "none" : clampNumber(minRatingValue, 1, 5, 3),
@@ -868,6 +868,7 @@ function setDishCategories(dish, value) {
 function hydrateCategoryData(force = false) {
   const stored = force ? null : readJsonStorage(categoryDataKey, null);
   const hasStored = stored && typeof stored === "object";
+  let shouldPersistHydratedData = false;
   const storedVersion = Number(stored?.version) || 1;
   const defaultList = uniqueCategoriesFrom([...getDefaultCategories(), DEFAULT_CATEGORY]);
   const storedCatalog = uniqueCategoriesFrom(Array.isArray(stored?.categories) ? stored.categories : []);
@@ -893,6 +894,13 @@ function hydrateCategoryData(force = false) {
       if (dish && Number.isFinite(normalizedPrice) && normalizedPrice >= 0) dish.price = normalizedPrice;
     });
 
+    dishById.forEach((dish) => {
+      if (dish.name === "猪蹄压黄豆" && Number(dish.price) === 48) {
+        dish.price = 45;
+        shouldPersistHydratedData = true;
+      }
+    });
+
     Object.entries(storedDishCategories).forEach(([id, categoryConfig]) => {
       const dish = dishById.get(Number(id));
       if (!dish) return;
@@ -916,6 +924,7 @@ function hydrateCategoryData(force = false) {
 
   dishes = Array.from(dishById.values());
   categoryCatalog = Array.from(categorySet);
+  if (shouldPersistHydratedData) persistCategoryData();
 }
 
 function persistCategoryData() {
