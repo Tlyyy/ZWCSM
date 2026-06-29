@@ -1512,8 +1512,7 @@ textarea:focus {
 
 .calendar-board {
   display: grid;
-  grid-template-rows: auto auto auto;
-  align-content: start;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 10px;
   height: 100%;
   overflow: hidden;
@@ -1562,6 +1561,7 @@ textarea:focus {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
+  height: 100%;
   min-height: 0;
   align-items: start;
 }
@@ -1612,7 +1612,8 @@ textarea:focus {
   padding: 16px;
   border-top: 1px solid var(--line);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
-  align-self: start;
+  align-self: stretch;
+  height: 100%;
 }
 
 .calendar-month-card {
@@ -1666,7 +1667,6 @@ textarea:focus {
   gap: 12px;
   align-content: start;
   min-height: 0;
-  max-height: calc(100vh - 440px);
   overflow: auto;
   padding-right: 2px;
 }
@@ -1680,6 +1680,7 @@ textarea:focus {
   border-radius: 9px;
   background: #fff;
   overflow: hidden;
+  min-height: 96px;
 }
 
 .calendar-record-date,
@@ -1736,15 +1737,27 @@ textarea:focus {
   font-size: 0.82rem;
 }
 
-.calendar-record-plan p {
-  display: -webkit-box;
-  margin: 7px 0 0;
-  overflow: hidden;
+.calendar-record-dishes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.calendar-record-dishes span {
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #e1e7f0;
+  border-radius: 999px;
+  background: #fff;
   color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .calendar-empty-record {

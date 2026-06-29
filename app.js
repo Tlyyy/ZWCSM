@@ -2820,7 +2820,9 @@ function renderCalendar() {
                               minute: "2-digit",
                             })}</time>
                           </div>
-                          <p>${plan.dishes.map((dish) => dish.name).join("、")}</p>
+                          <div class="calendar-record-dishes">
+                            ${plan.dishes.map((dish) => `<span>${escapeHtml(dish.name)}</span>`).join("")}
+                          </div>
                         </div>
                       `,
                     )
