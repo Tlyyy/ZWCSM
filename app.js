@@ -32,6 +32,7 @@ const baseDishes = [
   { name: "爆炒豆芽", price: 13, category: "田园时蔬" },
   { name: "青椒炒蛋", price: 18, category: "田园时蔬" },
   { name: "手撕包菜", price: 13, category: "田园时蔬" },
+  { name: "清炒花菜", price: 15, category: "田园时蔬" },
 
   { name: "西红柿蛋汤", price: 13, category: "暖味汤类", type: "soup" },
   { name: "紫菜蛋汤", price: 13, category: "暖味汤类", type: "soup" },
