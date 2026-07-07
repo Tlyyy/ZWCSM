@@ -877,6 +877,12 @@ function hydrateCategoryData(force = false) {
   const storedDishNames = stored?.dishNames && typeof stored.dishNames === "object" ? stored.dishNames : {};
   const storedDishPrices = stored?.dishPrices && typeof stored.dishPrices === "object" ? stored.dishPrices : {};
   const deletedDishIds = new Set(Array.isArray(stored?.deletedDishIds) ? stored.deletedDishIds.map(Number) : []);
+  const restoredDishIds = baseDishes
+    .filter((dish) => dish.name === "玉米排骨汤")
+    .map((dish) => dish.id);
+  restoredDishIds.forEach((id) => {
+    if (deletedDishIds.delete(id)) shouldPersistHydratedData = true;
+  });
   const catalog = uniqueCategoriesFrom([...storedCatalog, ...defaultList]);
   const dishById = new Map(baseDishes.map((dish) => [dish.id, { ...dish, categories: [dish.category], category: dish.category }]));
 
