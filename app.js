@@ -67,7 +67,6 @@ const baseDishes = [
   { name: "莲花鸭血", price: 48, category: "特色菜" },
   { name: "水煮牛肉", price: 55, category: "特色菜" },
   { name: "椒盐小酥肉", price: 32, category: "特色菜" },
-  { name: "毛血旺", price: 50, category: "特色菜" },
   { name: "红烧河虾", price: 45, category: "特色菜" },
   { name: "河虾", price: 55, category: "特色菜" },
   { name: "腊肉", price: 35, category: "特色菜" },
@@ -100,6 +99,8 @@ const baseDishes = [
   { name: "干锅鱼子鱼泡", price: 58, category: "鱼类", type: "fish" },
   { name: "昂刺鱼烧豆腐", price: 48, category: "鱼类", type: "fish" },
   { name: "剁椒鱼头", price: 58, category: "鱼类", type: "fish" },
+
+  { id: 1001, name: "毛血旺", price: 50, category: "特色菜" },
 ].map((dish, index) => ({ id: index + 1, ...dish }));
 
 const weeklyPlansKey = "lunch-picker-weekly-plans-v1";
