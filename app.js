@@ -130,6 +130,8 @@ let fixedDishIds = new Set();
 let backfillDishIds = new Set();
 let calendarDate = new Date();
 let currentReviewVariant = 0;
+let recommendationHistory = [];
+const maxRecommendationHistory = 8;
 
 const elements = {
   tabButtons: document.querySelectorAll("[data-tab]"),
@@ -1735,7 +1737,10 @@ function getDishScore(dish, plan, settings, slot, noise = 4, context = null) {
   score += getRatingPreferenceScore(dish, context) * 0.85;
   score -= getDishVarietyPenalty(dish, plan);
   score -= getContextRecentDishCount(dish, context) * (context?.fixedDishIds?.has(dish.id) ? 7 : 22);
-  if (context?.previousPlanIds?.has(dish.id) && !context?.fixedDishIds?.has(dish.id)) score -= 34;
+  if (!context?.fixedDishIds?.has(dish.id)) {
+    score -= (Number(context?.recentGeneratedDishCounts?.[dish.id]) || 0) * 16;
+    if (context?.previousPlanIds?.has(dish.id)) score -= 62;
+  }
   if (nextSubtotal <= budgetBand.upperSubtotal) score += 8;
   if (nextSubtotal > budgetBand.upperSubtotal) score -= Math.min(120, (nextSubtotal - budgetBand.upperSubtotal) * 4);
   if (plan.length + 1 >= (context?.targetCount || getTargetDishCount(settings))) {
@@ -1754,12 +1759,12 @@ function getDishScore(dish, plan, settings, slot, noise = 4, context = null) {
 }
 
 function pickWeighted(scoredDishes) {
-  const topDishes = scoredDishes.slice(0, Math.min(5, scoredDishes.length));
-  const weightTotal = topDishes.reduce((sum, item, index) => sum + (topDishes.length - index) ** 2, 0);
+  const topDishes = scoredDishes.slice(0, Math.min(8, scoredDishes.length));
+  const weightTotal = topDishes.reduce((sum, item, index) => sum + Math.max(1, topDishes.length - index), 0);
   let marker = Math.random() * weightTotal;
 
   for (const [index, item] of topDishes.entries()) {
-    marker -= (topDishes.length - index) ** 2;
+    marker -= Math.max(1, topDishes.length - index);
     if (marker <= 0) return item.dish;
   }
 
@@ -1811,6 +1816,7 @@ function getDishSubtotal(plan) {
 
 function createRecommendationContext(candidates, settings, fixedDishes = []) {
   const targetCount = Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
+  const recentGeneratedDishCounts = getRecommendationHistoryDishCounts();
   return {
     targetCount,
     budgetBand: getBudgetBand(settings),
@@ -1818,6 +1824,8 @@ function createRecommendationContext(candidates, settings, fixedDishes = []) {
     ratings: getDishRatings(),
     recentDishCounts: getRecentDishUsageCounts(Math.min(4, settings.eatenWeekScope + 2)),
     previousPlanIds: new Set(currentPlan.map((dish) => dish.id)),
+    recentGeneratedDishCounts,
+    recentGeneratedSignatures: new Set(recommendationHistory.map((item) => item.signature)),
     fixedDishIds: new Set(fixedDishes.map((dish) => dish.id)),
   };
 }
@@ -1976,7 +1984,8 @@ function improveBudgetUsage(plan, candidates, settings, context = null) {
         const preferenceScore =
           getRatingPreferenceScore(dish, context) * 0.35 -
           getDishVarietyPenalty(dish, nextPlan) * 0.55 -
-          getContextRecentDishCount(dish, context) * 10;
+          getContextRecentDishCount(dish, context) * 10 -
+          (Number(context?.recentGeneratedDishCounts?.[dish.id]) || 0) * 9;
         return { dish, score: -gap + roleBonus + preferenceScore - (isOrganDish(dish) ? 16 : 0) - (isHeavyDish(dish) ? 12 : 0) };
       })
       .sort((a, b) => b.score - a.score);
@@ -2006,7 +2015,8 @@ function improveBudgetUsage(plan, candidates, settings, context = null) {
         const preferenceScore =
           getRatingPreferenceScore(newDish, context) * 0.3 -
           getDishVarietyPenalty(newDish, nextPlan.filter((dish) => dish.id !== oldDish.id)) * 0.45 -
-          getContextRecentDishCount(newDish, context) * 8;
+          getContextRecentDishCount(newDish, context) * 8 -
+          (Number(context?.recentGeneratedDishCounts?.[newDish.id]) || 0) * 8;
         const score = oldGap - newGap + slotBonus + preferenceScore - (isHeavyDish(newDish) ? 8 : 0) - (isOrganDish(newDish) ? 10 : 0);
 
         if (!bestMove || score > bestMove.score) {
@@ -2095,7 +2105,10 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = [], context = n
   const highPriceCount = plan.filter((dish) => dish.price >= 55).length;
   const fixedMissingCount = fixedDishes.filter((fixedDish) => !plan.some((dish) => dish.id === fixedDish.id)).length;
   const previousPlanIds = context?.previousPlanIds || new Set(currentPlan.map((dish) => dish.id));
-  const previousOverlapCount = plan.filter((dish) => previousPlanIds.has(dish.id) && !fixedDishIds.has(dish.id)).length;
+  const fixedIds = context?.fixedDishIds || fixedDishIds;
+  const previousOverlapCount = plan.filter((dish) => previousPlanIds.has(dish.id) && !fixedIds.has(dish.id)).length;
+  const recentRecommendationOverlap = getRecentRecommendationOverlap(plan, context);
+  const isRecentExactPlan = context?.recentGeneratedSignatures?.has(getPlanSignature(plan));
   const soupAllowed = !settings.excludedTags.includes("汤类");
   const bigDishAllowed = !settings.excludedTags.includes("大菜");
   const shouldHaveSoup = soupAllowed && targetCount >= 3;
@@ -2130,8 +2143,10 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = [], context = n
 
   score -= Math.abs(plan.length - targetCount) * 120;
   score -= fixedMissingCount * 1000;
-  score -= previousOverlapCount * 46;
-  if (previousOverlapCount === plan.length && plan.length > 0) score -= 180;
+  score -= previousOverlapCount * 92;
+  score -= recentRecommendationOverlap * 34;
+  if (isRecentExactPlan) score -= 520;
+  if (previousOverlapCount === plan.length && plan.length > 0) score -= 420;
   score -= getPlanCategoryDuplicates(plan) * 52;
   score -= getPlanFamilyDuplicates(plan) * 72;
   score -= getPlanTagDuplicates(plan) * 58;
@@ -2220,6 +2235,40 @@ function getPlanSignature(plan) {
     .join("-");
 }
 
+function getRecommendationHistoryDishCounts() {
+  return recommendationHistory.reduce((counts, item, historyIndex) => {
+    const weight = maxRecommendationHistory - historyIndex;
+    item.ids.forEach((id) => {
+      counts[id] = (counts[id] || 0) + weight;
+    });
+    return counts;
+  }, {});
+}
+
+function getRecentRecommendationOverlap(plan, context = null) {
+  const counts = context?.recentGeneratedDishCounts || {};
+  return plan.reduce((sum, dish) => {
+    if (context?.fixedDishIds?.has(dish.id)) return sum;
+    return sum + (Number(counts[dish.id]) || 0);
+  }, 0);
+}
+
+function rememberRecommendationPlan(plan) {
+  if (!Array.isArray(plan) || plan.length === 0) return;
+  const signature = getPlanSignature(plan);
+  recommendationHistory = [
+    {
+      signature,
+      ids: plan.map((dish) => dish.id),
+    },
+    ...recommendationHistory.filter((item) => item.signature !== signature),
+  ].slice(0, maxRecommendationHistory);
+}
+
+function resetRecommendationHistory() {
+  recommendationHistory = [];
+}
+
 function refinePlanByScore(plan, candidates, settings, fixedDishes = [], context = null) {
   let nextPlan = [...plan];
   let bestScore = scoreMealPlan(nextPlan, candidates, settings, fixedDishes, context);
@@ -2251,7 +2300,7 @@ function refinePlanByScore(plan, candidates, settings, fixedDishes = [], context
   return nextPlan;
 }
 
-function pickPlanFromTop(scoredPlans) {
+function pickPlanFromTop(scoredPlans, context = null) {
   const uniquePlans = [];
   const seenSignatures = new Set();
 
@@ -2265,10 +2314,17 @@ function pickPlanFromTop(scoredPlans) {
     });
 
   const bestScore = uniquePlans[0]?.score ?? -Infinity;
-  const strongPlans = uniquePlans.filter((item, index) => index < 6 && item.score >= bestScore - 60);
-  const pickPool = strongPlans.length > 1 ? strongPlans : uniquePlans.slice(0, Math.min(4, uniquePlans.length));
+  const freshPlans = uniquePlans.filter((item) => {
+    if (context?.recentGeneratedSignatures?.has(getPlanSignature(item.plan))) return false;
+    const plainOverlap = item.plan.filter((dish) => context?.previousPlanIds?.has(dish.id) && !context?.fixedDishIds?.has(dish.id)).length;
+    return plainOverlap < Math.max(1, item.plan.length - 1);
+  });
+  const rankedPlans = freshPlans.length >= 3 ? freshPlans : uniquePlans;
+  const rankedBestScore = rankedPlans[0]?.score ?? bestScore;
+  const strongPlans = rankedPlans.filter((item, index) => index < 14 && item.score >= rankedBestScore - 140);
+  const pickPool = strongPlans.length > 1 ? strongPlans : rankedPlans.slice(0, Math.min(8, rankedPlans.length));
   const lastPick = pickPool[pickPool.length - 1];
-  const cutoffScore = Math.max((lastPick?.score ?? bestScore) - 1, bestScore - 60);
+  const cutoffScore = Math.max((lastPick?.score ?? rankedBestScore) - 1, rankedBestScore - 140);
   const weightTotal = pickPool.reduce((sum, item, index) => sum + Math.max(1, item.score - cutoffScore + 6 - index), 0);
   let marker = Math.random() * weightTotal;
 
@@ -2282,7 +2338,7 @@ function pickPlanFromTop(scoredPlans) {
 
 function generateBalancedPlan(candidates, settings, fixedDishes = []) {
   const context = createRecommendationContext(candidates, settings, fixedDishes);
-  const attempts = Math.min(160, Math.max(48, candidates.length * 3));
+  const attempts = Math.min(240, Math.max(72, candidates.length * 4));
   const scoredPlans = [];
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -2291,8 +2347,10 @@ function generateBalancedPlan(candidates, settings, fixedDishes = []) {
     scoredPlans.push({ plan: candidatePlan, score: candidateScore });
   }
 
-  const selectedPlan = pickPlanFromTop(scoredPlans);
-  return sortPlanDishes(refinePlanByScore(selectedPlan, candidates, settings, fixedDishes, context));
+  const selectedPlan = pickPlanFromTop(scoredPlans, context);
+  const finalPlan = sortPlanDishes(refinePlanByScore(selectedPlan, candidates, settings, fixedDishes, context));
+  rememberRecommendationPlan(finalPlan);
+  return finalPlan;
 }
 
 function renderSummary() {
@@ -3254,12 +3312,14 @@ function normalizeInputs() {
 }
 
 function handleSettingsChange() {
+  resetRecommendationHistory();
   normalizeInputs();
   renderSummary();
   renderCandidates();
 }
 
 function handleSettingsInput() {
+  resetRecommendationHistory();
   renderSummary();
   renderCandidates();
 }
@@ -3367,6 +3427,7 @@ function bindEvents() {
   elements.clearPlan.addEventListener("click", () => {
     currentPlan = [];
     fixedDishIds = new Set();
+    resetRecommendationHistory();
     renderPlan();
     renderCandidates();
     renderPlanSearchResults();
