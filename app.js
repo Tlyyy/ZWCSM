@@ -1266,6 +1266,20 @@ function getEatenDishIdsForRecentWeeks(weekCount = 1) {
   );
 }
 
+function getRecentDishUsageCounts(weekCount = 4) {
+  const weekKeys = new Set(getRecentWeekKeys(weekCount));
+  const plansByWeek = getAllWeeklyPlans();
+  return Object.entries(plansByWeek)
+    .filter(([weekKey]) => weekKeys.has(weekKey))
+    .flatMap(([, plans]) => plans || [])
+    .reduce((counts, plan) => {
+      (plan.dishes || []).forEach((dish) => {
+        counts[dish.id] = (counts[dish.id] || 0) + 1;
+      });
+      return counts;
+    }, {});
+}
+
 function getCategories() {
   return [...categoryCatalog].sort((a, b) => a.localeCompare(b, "zh-Hans"));
 }
@@ -1678,9 +1692,12 @@ function getRemainingMealSlots(settings, fixedDishes = []) {
   return slots;
 }
 
-function getDishScore(dish, plan, settings, slot, noise = 4) {
-  const targetDishBudget = Math.max(18, settings.totalBudget / settings.discount / Math.max(1, getTargetDishCount(settings)));
+function getDishScore(dish, plan, settings, slot, noise = 4, context = null) {
   let score = Math.random() * noise;
+  const currentSubtotal = getDishSubtotal(plan);
+  const nextSubtotal = currentSubtotal + dish.price;
+  const budgetBand = context?.budgetBand || getBudgetBand(settings);
+  const targetSubtotal = context?.targetSubtotal || getTargetBudgetSubtotal(settings);
 
   if (slot === "protein" && hasDishCategory(dish, "家常小炒")) score += 24;
   if (slot === "protein" && hasDishCategory(dish, "盖菜类")) score += 12;
@@ -1714,7 +1731,17 @@ function getDishScore(dish, plan, settings, slot, noise = 4) {
     if (isVegetable(dish) && dish.price <= 15) score -= 8;
   }
 
-  if (dish.price >= targetDishBudget * 0.7 && dish.price <= targetDishBudget * 1.55) score += 12;
+  score += getDishPriceFitScore(dish, settings, slot, context);
+  score += getRatingPreferenceScore(dish, context) * 0.85;
+  score -= getDishVarietyPenalty(dish, plan);
+  score -= getContextRecentDishCount(dish, context) * (context?.fixedDishIds?.has(dish.id) ? 7 : 22);
+  if (context?.previousPlanIds?.has(dish.id) && !context?.fixedDishIds?.has(dish.id)) score -= 34;
+  if (nextSubtotal <= budgetBand.upperSubtotal) score += 8;
+  if (nextSubtotal > budgetBand.upperSubtotal) score -= Math.min(120, (nextSubtotal - budgetBand.upperSubtotal) * 4);
+  if (plan.length + 1 >= (context?.targetCount || getTargetDishCount(settings))) {
+    score -= Math.abs(targetSubtotal - nextSubtotal) * 0.28;
+  }
+
   if (dish.price <= 18 && slot !== "vegetable" && slot !== "soup") score -= 10;
   if (isOrganDish(dish)) score -= plan.some(isOrganDish) ? 60 : 16;
   if (isHeavyDish(dish)) score -= plan.some(isHeavyDish) ? 60 : 12;
@@ -1739,12 +1766,12 @@ function pickWeighted(scoredDishes) {
   return topDishes[0]?.dish;
 }
 
-function pickForSlot(candidates, plan, settings, slot, strict = true, options = {}) {
+function pickForSlot(candidates, plan, settings, slot, strict = true, options = {}, context = null) {
   const predicate = getSlotPredicate(slot);
   const scoredDishes = candidates
     .filter((dish) => predicate(dish) && canAddDish(plan, dish, strict))
     .filter((dish) => !(settings.mealMode === "budget" && isBudgetStretchDish(dish)))
-    .map((dish) => ({ dish, score: getDishScore(dish, plan, settings, slot, options.noise ?? 4) }))
+    .map((dish) => ({ dish, score: getDishScore(dish, plan, settings, slot, options.noise ?? 4, context) }))
     .sort((a, b) => b.score - a.score);
 
   return options.weighted ? pickWeighted(scoredDishes) : scoredDishes[0]?.dish;
@@ -1780,6 +1807,82 @@ function getTargetBudgetSubtotal(settings) {
 
 function getDishSubtotal(plan) {
   return plan.reduce((sum, dish) => sum + dish.price, 0);
+}
+
+function createRecommendationContext(candidates, settings, fixedDishes = []) {
+  const targetCount = Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
+  return {
+    targetCount,
+    budgetBand: getBudgetBand(settings),
+    targetSubtotal: getTargetBudgetSubtotal(settings),
+    ratings: getDishRatings(),
+    recentDishCounts: getRecentDishUsageCounts(Math.min(4, settings.eatenWeekScope + 2)),
+    previousPlanIds: new Set(currentPlan.map((dish) => dish.id)),
+    fixedDishIds: new Set(fixedDishes.map((dish) => dish.id)),
+  };
+}
+
+function getContextDishRating(dish, context = null) {
+  const ratings = context?.ratings || getDishRatings();
+  return Number(ratings[dish.id]) || 0;
+}
+
+function getContextRecentDishCount(dish, context = null) {
+  return Number(context?.recentDishCounts?.[dish.id]) || 0;
+}
+
+function getRatingPreferenceScore(dish, context = null) {
+  const rating = getContextDishRating(dish, context);
+  if (rating >= 5) return 42;
+  if (rating >= 4) return 26;
+  if (rating >= 3) return 8;
+  if (rating >= 2) return -34;
+  if (rating >= 1) return -72;
+  return 0;
+}
+
+function getSlotBudgetRatio(slot, settings) {
+  const baseRatios = {
+    soup: 0.55,
+    vegetable: 0.65,
+    protein: 1,
+    hard: 1.22,
+    big: 1.38,
+  };
+  let ratio = baseRatios[slot] || 1;
+  if (settings.mealMode === "budget" && slot !== "soup" && slot !== "vegetable") ratio -= 0.12;
+  if (settings.mealMode === "treat" && (slot === "big" || slot === "hard")) ratio += 0.18;
+  return ratio;
+}
+
+function getDishPriceFitScore(dish, settings, slot, context = null) {
+  const targetCount = Math.max(1, context?.targetCount || getTargetDishCount(settings));
+  const targetSubtotal = context?.targetSubtotal || getTargetBudgetSubtotal(settings);
+  const expectedPrice = Math.max(slot === "soup" ? 12 : 15, (targetSubtotal / targetCount) * getSlotBudgetRatio(slot, settings));
+  const tolerance = Math.max(7, expectedPrice * (slot === "big" || slot === "hard" ? 0.52 : 0.42));
+  const missRatio = Math.abs(dish.price - expectedPrice) / tolerance;
+  return Math.max(-38, 24 - missRatio * 30);
+}
+
+function getDishVarietyPenalty(dish, plan) {
+  if (plan.length === 0) return 0;
+
+  const family = getDishFamily(dish);
+  const relaxedFamilies = ["田园时蔬", "家常小炒", "盖菜类"];
+  const sameFamilyCount = plan.filter((item) => getDishFamily(item) === family).length;
+  let penalty = sameFamilyCount * (relaxedFamilies.includes(family) ? 8 : 28);
+
+  if (isVegetable(dish)) penalty += Math.max(0, plan.filter(isVegetable).length - 1) * 18;
+  if (isSpicyDish(dish)) penalty += plan.filter(isSpicyDish).length * 16;
+
+  const tags = new Set(getDishTags(dish));
+  ["豆制品", "蛋类", "腌腊类", "油炸干煸", "骨头类", "高价菜", "干锅"].forEach((tag) => {
+    if (!tags.has(tag)) return;
+    const existingCount = plan.filter((item) => getDishTags(item).includes(tag)).length;
+    penalty += existingCount * (tag === "高价菜" || tag === "干锅" ? 24 : 14);
+  });
+
+  return penalty;
 }
 
 function sortPlanDishes(plan) {
@@ -1843,12 +1946,12 @@ function getSlotForDish(dish) {
   return "protein";
 }
 
-function improveBudgetUsage(plan, candidates, settings) {
+function improveBudgetUsage(plan, candidates, settings, context = null) {
   let nextPlan = [...plan];
-  const budgetBand = getBudgetBand(settings);
+  const budgetBand = context?.budgetBand || getBudgetBand(settings);
   const budgetLimit = budgetBand.upperSubtotal;
-  const targetSubtotal = getTargetBudgetSubtotal(settings);
-  const targetCount = Math.max(nextPlan.length, Math.min(getTargetDishCount(settings), candidates.length));
+  const targetSubtotal = context?.targetSubtotal || getTargetBudgetSubtotal(settings);
+  const targetCount = Math.max(nextPlan.length, context?.targetCount || Math.min(getTargetDishCount(settings), candidates.length));
   let guard = 0;
 
   while (nextPlan.length < targetCount && getDishSubtotal(nextPlan) < budgetBand.lowerSubtotal) {
@@ -1870,7 +1973,11 @@ function improveBudgetUsage(plan, candidates, settings) {
               ? nextSubtotal - budgetBand.upperSubtotal
               : Math.abs(targetSubtotal - nextSubtotal) * 0.18;
         const roleBonus = getSlotPredicate(preferredSlot)(dish) ? 22 : 0;
-        return { dish, score: -gap + roleBonus - (isOrganDish(dish) ? 16 : 0) - (isHeavyDish(dish) ? 12 : 0) };
+        const preferenceScore =
+          getRatingPreferenceScore(dish, context) * 0.35 -
+          getDishVarietyPenalty(dish, nextPlan) * 0.55 -
+          getContextRecentDishCount(dish, context) * 10;
+        return { dish, score: -gap + roleBonus + preferenceScore - (isOrganDish(dish) ? 16 : 0) - (isHeavyDish(dish) ? 12 : 0) };
       })
       .sort((a, b) => b.score - a.score);
 
@@ -1896,7 +2003,11 @@ function improveBudgetUsage(plan, candidates, settings) {
         const oldGap = Math.max(0, budgetBand.lowerSubtotal - currentSubtotal);
         const newGap = Math.max(0, budgetBand.lowerSubtotal - newSubtotal);
         const slotBonus = getSlotPredicate(slot)(newDish) ? 10 : 0;
-        const score = oldGap - newGap + slotBonus - (isHeavyDish(newDish) ? 8 : 0) - (isOrganDish(newDish) ? 10 : 0);
+        const preferenceScore =
+          getRatingPreferenceScore(newDish, context) * 0.3 -
+          getDishVarietyPenalty(newDish, nextPlan.filter((dish) => dish.id !== oldDish.id)) * 0.45 -
+          getContextRecentDishCount(newDish, context) * 8;
+        const score = oldGap - newGap + slotBonus + preferenceScore - (isHeavyDish(newDish) ? 8 : 0) - (isOrganDish(newDish) ? 10 : 0);
 
         if (!bestMove || score > bestMove.score) {
           bestMove = { oldDish, newDish, score, newSubtotal };
@@ -1942,12 +2053,36 @@ function getPlanFamilyDuplicates(plan) {
   }, 0);
 }
 
-function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
+function getPlanTagDuplicates(plan) {
+  const limits = {
+    "辣口": 2,
+    "重口菜": 1,
+    "腌腊类": 1,
+    "油炸干煸": 1,
+    "骨头类": 1,
+    "高价菜": 1,
+    "干锅": 1,
+    "内脏": 1,
+    "鱼类": 1,
+  };
+  const counts = plan.reduce((groups, dish) => {
+    getDishTags(dish).forEach((tag) => {
+      if (!Object.prototype.hasOwnProperty.call(limits, tag)) return;
+      groups[tag] = (groups[tag] || 0) + 1;
+    });
+    return groups;
+  }, {});
+
+  return Object.entries(counts).reduce((sum, [tag, count]) => sum + Math.max(0, count - limits[tag]), 0);
+}
+
+function scoreMealPlan(plan, candidates, settings, fixedDishes = [], context = null) {
   if (plan.length === 0) return -Infinity;
 
-  const targetCount = Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
+  const targetCount = context?.targetCount || Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
   const summary = calculatePlanSummary(plan, settings);
-  const budgetBand = getBudgetBand(settings);
+  const budgetBand = context?.budgetBand || getBudgetBand(settings);
+  const targetSubtotal = context?.targetSubtotal || getTargetBudgetSubtotal(settings);
   const budgetBase = Math.max(settings.totalBudget, 1);
   const vegetableCount = plan.filter(isVegetable).length;
   const soupCount = plan.filter(isSoup).length;
@@ -1959,20 +2094,31 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   const spicyCount = plan.filter(isSpicyDish).length;
   const highPriceCount = plan.filter((dish) => dish.price >= 55).length;
   const fixedMissingCount = fixedDishes.filter((fixedDish) => !plan.some((dish) => dish.id === fixedDish.id)).length;
-  const previousPlanIds = new Set(currentPlan.map((dish) => dish.id));
+  const previousPlanIds = context?.previousPlanIds || new Set(currentPlan.map((dish) => dish.id));
   const previousOverlapCount = plan.filter((dish) => previousPlanIds.has(dish.id) && !fixedDishIds.has(dish.id)).length;
   const soupAllowed = !settings.excludedTags.includes("汤类");
   const bigDishAllowed = !settings.excludedTags.includes("大菜");
   const shouldHaveSoup = soupAllowed && targetCount >= 3;
   const shouldHaveBigDish =
     bigDishAllowed && settings.mealMode !== "budget" && (settings.totalBudget >= 100 || settings.mealMode === "treat") && targetCount >= 4;
-  const ratedValues = plan.map((dish) => getDishRating(dish.id)).filter(Boolean);
+  const ratedValues = plan.map((dish) => getContextDishRating(dish, context)).filter(Boolean);
   const averageRating = ratedValues.length > 0 ? ratedValues.reduce((sum, rating) => sum + rating, 0) / ratedValues.length : 0;
+  const ratingCoverage = ratedValues.length / plan.length;
+  const recentUseCount = plan.reduce((sum, dish) => sum + (context?.fixedDishIds?.has(dish.id) ? 0 : getContextRecentDishCount(dish, context)), 0);
+  const distinctCategoryCount = new Set(plan.map(getPrimaryCategory)).size;
+  const distinctFamilyCount = new Set(plan.map(getDishFamily)).size;
+  const roleCount = [
+    vegetableCount > 0,
+    soupCount > 0,
+    proteinCount > 0,
+    bigDishCount > 0 || plan.some(isHardDish),
+  ].filter(Boolean).length;
 
   let score = 1000;
 
   if (summary.finalTotal >= budgetBand.lowerFinal && summary.finalTotal <= budgetBand.upperFinal) {
     score += 220;
+    score += Math.max(0, 85 - Math.abs(summary.dishSubtotal - targetSubtotal) * 1.1);
     if (settings.mealMode === "normal") score += 28;
   } else if (summary.finalTotal < budgetBand.lowerFinal) {
     const lowRatio = (budgetBand.lowerFinal - summary.finalTotal) / budgetBase;
@@ -1988,6 +2134,8 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   if (previousOverlapCount === plan.length && plan.length > 0) score -= 180;
   score -= getPlanCategoryDuplicates(plan) * 52;
   score -= getPlanFamilyDuplicates(plan) * 72;
+  score -= getPlanTagDuplicates(plan) * 58;
+  score -= recentUseCount * 36;
   score -= Math.max(0, vegetableCount - 2) * 42;
   score -= Math.max(0, soupCount - 1) * 90;
   score -= Math.max(0, fishCount - 1) * 88;
@@ -2013,9 +2161,13 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   if (settings.mealMode === "light") score -= spicyCount * 45 + heavyCount * 35 + organCount * 35;
   if (settings.mealMode === "hearty" && proteinCount >= vegetableCount) score += 55;
   if (settings.mealMode === "treat" && bigDishCount > 0) score += 90;
-  if (averageRating > 0) score += (averageRating - 3) * 34 + Math.min(ratedValues.length, 3) * 12;
+  if (averageRating > 0) score += (averageRating - 3) * 46 + Math.min(ratedValues.length, 4) * 13 + ratingCoverage * 22;
+  score += Math.min(distinctCategoryCount, targetCount) * 12;
+  score += Math.min(distinctFamilyCount, targetCount) * 8;
+  score += roleCount * 18;
 
   plan.forEach((dish) => {
+    score += getRatingPreferenceScore(dish, context) * 0.18;
     if (isOrganDish(dish)) score -= 14;
     if (isHeavyDish(dish)) score -= 12;
     if (isSpicyDish(dish)) score -= 4;
@@ -2028,8 +2180,8 @@ function scoreMealPlan(plan, candidates, settings, fixedDishes = []) {
   return score;
 }
 
-function buildCandidatePlan(candidates, settings, fixedDishes = [], attempt = 0) {
-  const targetCount = Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
+function buildCandidatePlan(candidates, settings, fixedDishes = [], attempt = 0, context = null) {
+  const targetCount = context?.targetCount || Math.max(fixedDishes.length, Math.min(getTargetDishCount(settings), candidates.length));
   const plan = [...fixedDishes];
   const remainingSlots = getRemainingMealSlots(settings, fixedDishes);
   const slots = attempt % 3 === 0 ? remainingSlots : shuffleList(remainingSlots);
@@ -2038,15 +2190,15 @@ function buildCandidatePlan(candidates, settings, fixedDishes = [], attempt = 0)
 
   slots.forEach((slot) => {
     if (plan.length >= targetCount) return;
-    const dish = pickForSlot(candidates, plan, settings, slot, true, pickOptions);
+    const dish = pickForSlot(candidates, plan, settings, slot, true, pickOptions, context);
     addDish(plan, dish);
   });
 
   while (plan.length < targetCount && plan.reduce((sum, dish) => sum + dish.price, 0) < budgetLimit * 0.88) {
     const slot = plan.filter(isVegetable).length < 1 ? "vegetable" : "protein";
     const nextDish =
-      pickForSlot(candidates, plan, settings, slot, true, pickOptions) ||
-      pickForSlot(candidates, plan, settings, slot, false, pickOptions);
+      pickForSlot(candidates, plan, settings, slot, true, pickOptions, context) ||
+      pickForSlot(candidates, plan, settings, slot, false, pickOptions, context);
     if (!nextDish) break;
     addDish(plan, nextDish);
   }
@@ -2058,7 +2210,7 @@ function buildCandidatePlan(candidates, settings, fixedDishes = [], attempt = 0)
   }
 
   const budgetedPlan = trimToBudget(plan, candidates, settings);
-  return improveBudgetUsage(budgetedPlan, candidates, settings);
+  return improveBudgetUsage(budgetedPlan, candidates, settings, context);
 }
 
 function getPlanSignature(plan) {
@@ -2066,6 +2218,37 @@ function getPlanSignature(plan) {
     .map((dish) => dish.id)
     .sort((a, b) => a - b)
     .join("-");
+}
+
+function refinePlanByScore(plan, candidates, settings, fixedDishes = [], context = null) {
+  let nextPlan = [...plan];
+  let bestScore = scoreMealPlan(nextPlan, candidates, settings, fixedDishes, context);
+
+  for (let guard = 0; guard < 4; guard += 1) {
+    const currentIds = new Set(nextPlan.map((dish) => dish.id));
+    let bestMove = null;
+
+    nextPlan.forEach((oldDish) => {
+      if (fixedDishIds.has(oldDish.id) || context?.fixedDishIds?.has(oldDish.id)) return;
+      candidates.forEach((newDish) => {
+        if (currentIds.has(newDish.id)) return;
+        if (settings.mealMode === "budget" && isBudgetStretchDish(newDish)) return;
+        if (!canReplaceDish(nextPlan, oldDish, newDish)) return;
+
+        const candidatePlan = nextPlan.map((dish) => (dish.id === oldDish.id ? newDish : dish));
+        const candidateScore = scoreMealPlan(candidatePlan, candidates, settings, fixedDishes, context);
+        if (candidateScore > bestScore + 12 && (!bestMove || candidateScore > bestMove.score)) {
+          bestMove = { oldDish, newDish, score: candidateScore };
+        }
+      });
+    });
+
+    if (!bestMove) break;
+    nextPlan = nextPlan.map((dish) => (dish.id === bestMove.oldDish.id ? bestMove.newDish : dish));
+    bestScore = bestMove.score;
+  }
+
+  return nextPlan;
 }
 
 function pickPlanFromTop(scoredPlans) {
@@ -2082,13 +2265,15 @@ function pickPlanFromTop(scoredPlans) {
     });
 
   const bestScore = uniquePlans[0]?.score ?? -Infinity;
-  const strongPlans = uniquePlans.filter((item, index) => index < 8 && item.score >= bestScore - 85);
+  const strongPlans = uniquePlans.filter((item, index) => index < 6 && item.score >= bestScore - 60);
   const pickPool = strongPlans.length > 1 ? strongPlans : uniquePlans.slice(0, Math.min(4, uniquePlans.length));
-  const weightTotal = pickPool.reduce((sum, item, index) => sum + Math.max(1, 12 - index * 2), 0);
+  const lastPick = pickPool[pickPool.length - 1];
+  const cutoffScore = Math.max((lastPick?.score ?? bestScore) - 1, bestScore - 60);
+  const weightTotal = pickPool.reduce((sum, item, index) => sum + Math.max(1, item.score - cutoffScore + 6 - index), 0);
   let marker = Math.random() * weightTotal;
 
   for (const [index, item] of pickPool.entries()) {
-    marker -= Math.max(1, 12 - index * 2);
+    marker -= Math.max(1, item.score - cutoffScore + 6 - index);
     if (marker <= 0) return item.plan;
   }
 
@@ -2096,16 +2281,18 @@ function pickPlanFromTop(scoredPlans) {
 }
 
 function generateBalancedPlan(candidates, settings, fixedDishes = []) {
-  const attempts = Math.min(120, Math.max(36, candidates.length * 2));
+  const context = createRecommendationContext(candidates, settings, fixedDishes);
+  const attempts = Math.min(160, Math.max(48, candidates.length * 3));
   const scoredPlans = [];
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const candidatePlan = buildCandidatePlan(candidates, settings, fixedDishes, attempt);
-    const candidateScore = scoreMealPlan(candidatePlan, candidates, settings, fixedDishes);
+    const candidatePlan = buildCandidatePlan(candidates, settings, fixedDishes, attempt, context);
+    const candidateScore = scoreMealPlan(candidatePlan, candidates, settings, fixedDishes, context);
     scoredPlans.push({ plan: candidatePlan, score: candidateScore });
   }
 
-  return sortPlanDishes(pickPlanFromTop(scoredPlans));
+  const selectedPlan = pickPlanFromTop(scoredPlans);
+  return sortPlanDishes(refinePlanByScore(selectedPlan, candidates, settings, fixedDishes, context));
 }
 
 function renderSummary() {
@@ -2169,6 +2356,9 @@ function getRecommendationExplanation(plan = currentPlan, summary = calculatePla
   if (plan.length === 0) return "生成菜单后会说明这桌为什么这样配。";
 
   const fixedCount = plan.filter((dish) => fixedDishIds.has(dish.id)).length;
+  const planRatings = plan.map((dish) => getDishRating(dish.id));
+  const ratedCount = planRatings.filter((rating) => rating > 0).length;
+  const highRatedCount = planRatings.filter((rating) => rating >= 4).length;
   const budgetText =
     Math.abs(summary.budgetDiff) <= settings.totalBudget * 0.05
       ? `预算浮动内，差 ${money(Math.abs(summary.budgetDiff))}`
@@ -2178,6 +2368,8 @@ function getRecommendationExplanation(plan = currentPlan, summary = calculatePla
   const parts = [`${getMealModeLabel(settings.mealMode)}模式`, getDishRoleSummary(plan), budgetText];
 
   if (fixedCount > 0) parts.push(`保留 ${fixedCount} 道固定菜`);
+  if (highRatedCount > 0) parts.push(`优先 ${highRatedCount} 道高评分菜`);
+  else if (ratedCount > 0) parts.push(`参考 ${ratedCount} 道菜品评分`);
   if (settings.excludedTags.length > 0) parts.push(`已避开 ${settings.excludedTags.join("、")}`);
   if (settings.eatenWeekScope > 0) parts.push(`排除最近 ${settings.eatenWeekScope} 周已吃`);
   if (settings.minRating !== "none") parts.push(`过滤低于 ${settings.minRating} 分`);
